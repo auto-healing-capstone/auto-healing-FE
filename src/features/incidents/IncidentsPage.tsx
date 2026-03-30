@@ -1,286 +1,279 @@
-import { 
-  BarChart, 
-  Bar, 
-  LineChart, 
-  Line, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
+import { useEffect, useMemo, useState } from "react";
+import { Activity, AlertTriangle, CheckCircle2, Clock3 } from "lucide-react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
   ResponsiveContainer,
-  AreaChart,
-  Area
+  Tooltip,
+  XAxis,
+  YAxis,
 } from "recharts";
-import { Activity, AlertTriangle, CheckCircle, Clock, Server } from "lucide-react";
+import { Skeleton } from "../../shared/ui/skeleton";
+import { getIncidents } from "../../entities/incident/api/getIncidents";
+import { getIncidentFlowChartData, getIncidentFlowStage } from "../../entities/incident/status";
+import type { Incident } from "../../entities/incident/types";
+import { fallbackIncidentMock } from "../../shared/mocks/dashboard";
+import { IncidentTable } from "../overview/components/IncidentTable";
+import { IncidentDetailsModal } from "./components/IncidentDetailsModal";
 
-const incidentData = [
-  { date: "Mar 15", critical: 2, warning: 5, resolved: 12 },
-  { date: "Mar 16", critical: 1, warning: 8, resolved: 15 },
-  { date: "Mar 17", critical: 3, warning: 6, resolved: 10 },
-  { date: "Mar 18", critical: 0, warning: 4, resolved: 18 },
-  { date: "Mar 19", critical: 2, warning: 7, resolved: 14 },
-  { date: "Mar 20", critical: 1, warning: 5, resolved: 16 },
-  { date: "Mar 21", critical: 2, warning: 6, resolved: 13 },
-];
-
-const serverMetrics = [
-  { time: "00:00", server1: 65, server2: 58, server3: 72 },
-  { time: "04:00", server1: 68, server2: 62, server3: 70 },
-  { time: "08:00", server1: 75, server2: 68, server3: 78 },
-  { time: "12:00", server1: 82, server2: 75, server3: 85 },
-  { time: "16:00", server1: 78, server2: 72, server3: 80 },
-  { time: "20:00", server1: 70, server2: 65, server3: 75 },
-];
-
-const incidents = [
-  {
-    id: "INC-2024-001",
-    title: "High CPU Usage on Server 3",
-    severity: "critical",
-    status: "active",
-    time: "2h ago",
-    server: "prod-server-03"
-  },
-  {
-    id: "INC-2024-002",
-    title: "Memory Leak Detected",
-    severity: "warning",
-    status: "investigating",
-    time: "5h ago",
-    server: "prod-server-01"
-  },
-  {
-    id: "INC-2024-003",
-    title: "Network Latency Spike",
-    severity: "warning",
-    status: "monitoring",
-    time: "8h ago",
-    server: "prod-server-02"
-  },
-  {
-    id: "INC-2024-004",
-    title: "Disk Space Warning",
-    severity: "info",
-    status: "resolved",
-    time: "12h ago",
-    server: "prod-server-04"
-  },
-];
+const severityColors = {
+  critical: "#ef4444",
+  warning: "#f59e0b",
+  info: "#3b82f6",
+  none: "#94a3b8",
+};
 
 export function IncidentsPage() {
+  const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadIncidents() {
+      try {
+        const data = await getIncidents();
+        if (!isMounted) {
+          return;
+        }
+        setIncidents(data);
+        setErrorMessage(null);
+      } catch {
+        if (!isMounted) {
+          return;
+        }
+        setIncidents(fallbackIncidentMock);
+        setErrorMessage("Incident API is unavailable. Showing fallback incidents for the analytics view.");
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    loadIncidents();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const summary = useMemo(() => {
+    const active = incidents.filter((incident) => {
+      const stage = getIncidentFlowStage(incident.status);
+      return stage === "incident" || stage === "awaiting_approval" || stage === "recovering";
+    }).length;
+    const resolved = incidents.filter((incident) => getIncidentFlowStage(incident.status) === "resolved").length;
+    const critical = incidents.filter((incident) => incident.severity === "critical").length;
+    const failed = incidents.filter((incident) => getIncidentFlowStage(incident.status) === "failed").length;
+
+    return {
+      total: incidents.length,
+      active,
+      resolved,
+      critical,
+      failed,
+    };
+  }, [incidents]);
+
+  const severityData = useMemo(() => {
+    const counts = new Map<string, number>();
+
+    for (const incident of incidents) {
+      counts.set(incident.severity, (counts.get(incident.severity) ?? 0) + 1);
+    }
+
+    return Array.from(counts.entries()).map(([name, value]) => ({
+      name,
+      value,
+      color: severityColors[name as keyof typeof severityColors] ?? severityColors.none,
+    }));
+  }, [incidents]);
+
+  const statusData = useMemo(() => {
+    return getIncidentFlowChartData(incidents.map((incident) => incident.status)).filter((item) => item.value > 0);
+  }, [incidents]);
+
   return (
-    <div className="space-y-6 max-w-[1440px] mx-auto">
+    <div className="mx-auto max-w-[1440px] space-y-6">
       <div>
         <h2 className="text-2xl font-semibold text-slate-900">Incidents</h2>
-        <p className="text-slate-600 mt-1">Track and manage system incidents</p>
+        <p className="mt-1 text-slate-600">
+          Backend incident data with status and severity views derived from the same API response.
+        </p>
       </div>
 
-      {/* Incident Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        {[
-          { label: "Active Incidents", value: "3", icon: Activity, color: "from-red-500 to-orange-500" },
-          { label: "Critical", value: "1", icon: AlertTriangle, color: "from-purple-500 to-pink-500" },
-          { label: "Resolved Today", value: "16", icon: CheckCircle, color: "from-green-500 to-emerald-500" },
-          { label: "Avg Response Time", value: "8m", icon: Clock, color: "from-blue-500 to-cyan-500" },
-        ].map((stat) => (
-          <div
-            key={stat.label}
-            className="rounded-2xl p-6 transition-all duration-300 hover:scale-[1.02]"
-            style={{
-              background: 'rgba(255, 255, 255, 0.7)',
-              backdropFilter: 'blur(20px)',
-              WebkitBackdropFilter: 'blur(20px)',
-              border: '1px solid rgba(255, 255, 255, 0.8)',
-              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)'
-            }}
-          >
-            <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${stat.color} flex items-center justify-center mb-4 shadow-lg`}>
-              <stat.icon className="w-6 h-6 text-white" />
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
+        <StatsCard label="Total Incidents" value={isLoading ? "--" : String(summary.total)} icon={Activity} />
+        <StatsCard label="Critical" value={isLoading ? "--" : String(summary.critical)} icon={AlertTriangle} tone="text-red-600" />
+        <StatsCard label="Resolved" value={isLoading ? "--" : String(summary.resolved)} icon={CheckCircle2} tone="text-green-600" />
+        <StatsCard label="Failed" value={isLoading ? "--" : String(summary.failed)} icon={Clock3} tone="text-slate-700" />
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <div
+          className="rounded-2xl p-6"
+          style={{
+            background: "rgba(255, 255, 255, 0.7)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            border: "1px solid rgba(255, 255, 255, 0.8)",
+            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.08)",
+          }}
+        >
+          <h3 className="text-lg font-semibold text-slate-900">Status Distribution</h3>
+          <p className="mt-1 text-sm text-slate-600">
+            Current breakdown by presentation status flow
+          </p>
+          {isLoading ? (
+            <div className="space-y-4 pt-6">
+              <Skeleton className="h-6 w-32" />
+              <Skeleton className="h-[260px] w-full" />
             </div>
-            <p className="text-sm text-slate-600 mb-1">{stat.label}</p>
-            <p className="text-3xl font-semibold text-slate-900">{stat.value}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Incident Trends */}
-      <div
-        className="rounded-2xl p-6"
-        style={{
-          background: 'rgba(255, 255, 255, 0.7)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          border: '1px solid rgba(255, 255, 255, 0.8)',
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)'
-        }}
-      >
-        <div className="mb-6">
-          <h3 className="text-lg font-semibold text-slate-900">Incident Trends</h3>
-          <p className="text-sm text-slate-600 mt-1">Weekly incident overview by severity</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={320}>
+              <BarChart data={statusData}>
+                <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" strokeOpacity={0.5} />
+                <XAxis dataKey="label" stroke="#94a3b8" style={{ fontSize: "12px" }} />
+                <YAxis allowDecimals={false} stroke="#94a3b8" style={{ fontSize: "12px" }} />
+                <Tooltip
+                  contentStyle={{
+                    background: "rgba(255, 255, 255, 0.95)",
+                    backdropFilter: "blur(12px)",
+                    border: "1px solid rgba(255, 255, 255, 0.8)",
+                    borderRadius: "12px",
+                    boxShadow: "0 8px 32px rgba(0, 0, 0, 0.12)",
+                  }}
+                />
+                <Bar dataKey="value" radius={[10, 10, 0, 0]}>
+                  {statusData.map((entry) => (
+                    <Cell
+                      key={entry.label}
+                      fill={entry.color}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </div>
-        <ResponsiveContainer width="100%" height={350}>
-          <BarChart data={incidentData}>
-            <defs>
-              <linearGradient id="criticalGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#ef4444" />
-                <stop offset="100%" stopColor="#dc2626" />
-              </linearGradient>
-              <linearGradient id="warningGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#f59e0b" />
-                <stop offset="100%" stopColor="#d97706" />
-              </linearGradient>
-              <linearGradient id="resolvedGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#10b981" />
-                <stop offset="100%" stopColor="#059669" />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.5} />
-            <XAxis dataKey="date" stroke="#94a3b8" style={{ fontSize: '12px' }} />
-            <YAxis stroke="#94a3b8" style={{ fontSize: '12px' }} />
-            <Tooltip 
-              contentStyle={{ 
-                background: 'rgba(255, 255, 255, 0.95)',
-                backdropFilter: 'blur(12px)',
-                border: '1px solid rgba(255, 255, 255, 0.8)',
-                borderRadius: '12px',
-                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)'
-              }}
-            />
-            <Bar dataKey="critical" fill="url(#criticalGrad)" radius={[8, 8, 0, 0]} name="Critical" />
-            <Bar dataKey="warning" fill="url(#warningGrad)" radius={[8, 8, 0, 0]} name="Warning" />
-            <Bar dataKey="resolved" fill="url(#resolvedGrad)" radius={[8, 8, 0, 0]} name="Resolved" />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
 
-      {/* Server Performance */}
-      <div
-        className="rounded-2xl p-6"
-        style={{
-          background: 'rgba(255, 255, 255, 0.7)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          border: '1px solid rgba(255, 255, 255, 0.8)',
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)'
-        }}
-      >
-        <div className="mb-6">
-          <h3 className="text-lg font-semibold text-slate-900">Server Performance</h3>
-          <p className="text-sm text-slate-600 mt-1">Real-time server resource utilization</p>
-        </div>
-        <ResponsiveContainer width="100%" height={300}>
-          <AreaChart data={serverMetrics}>
-            <defs>
-              <linearGradient id="server1" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/>
-                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-              </linearGradient>
-              <linearGradient id="server2" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.2}/>
-                <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
-              </linearGradient>
-              <linearGradient id="server3" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#ec4899" stopOpacity={0.2}/>
-                <stop offset="95%" stopColor="#ec4899" stopOpacity={0}/>
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.5} />
-            <XAxis dataKey="time" stroke="#94a3b8" style={{ fontSize: '12px' }} />
-            <YAxis stroke="#94a3b8" style={{ fontSize: '12px' }} />
-            <Tooltip 
-              contentStyle={{ 
-                background: 'rgba(255, 255, 255, 0.95)',
-                backdropFilter: 'blur(12px)',
-                border: '1px solid rgba(255, 255, 255, 0.8)',
-                borderRadius: '12px',
-                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)'
-              }}
-            />
-            <Area type="monotone" dataKey="server1" stroke="#3b82f6" strokeWidth={2} fill="url(#server1)" name="Server 1" />
-            <Area type="monotone" dataKey="server2" stroke="#8b5cf6" strokeWidth={2} fill="url(#server2)" name="Server 2" />
-            <Area type="monotone" dataKey="server3" stroke="#ec4899" strokeWidth={2} fill="url(#server3)" name="Server 3" />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-
-      {/* Active Incidents List */}
-      <div
-        className="rounded-2xl overflow-hidden"
-        style={{
-          background: 'rgba(255, 255, 255, 0.7)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          border: '1px solid rgba(255, 255, 255, 0.8)',
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)'
-        }}
-      >
-        <div className="p-6 border-b border-white/50">
-          <h3 className="text-lg font-semibold text-slate-900">Recent Incidents</h3>
-        </div>
-        <div className="p-6 space-y-4">
-          {incidents.map((incident) => (
-            <div
-              key={incident.id}
-              className="p-5 rounded-xl transition-all duration-300 hover:scale-[1.01]"
-              style={{
-                background: 'rgba(255, 255, 255, 0.5)',
-                backdropFilter: 'blur(12px)',
-                WebkitBackdropFilter: 'blur(12px)',
-                border: '1px solid rgba(255, 255, 255, 0.7)',
-                boxShadow: '0 4px 24px rgba(0, 0, 0, 0.06)'
-              }}
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex items-start gap-4 flex-1">
-                  <div className={`p-2.5 rounded-xl ${
-                    incident.severity === 'critical' 
-                      ? 'bg-gradient-to-br from-red-500 to-orange-500' 
-                      : incident.severity === 'warning'
-                      ? 'bg-gradient-to-br from-yellow-500 to-orange-500'
-                      : 'bg-gradient-to-br from-blue-500 to-cyan-500'
-                  } shadow-lg`}>
-                    <Server className="w-5 h-5 text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-1">
-                      <h4 className="font-semibold text-slate-900">{incident.title}</h4>
-                      <span className={`px-2.5 py-0.5 rounded-lg text-xs font-medium ${
-                        incident.severity === 'critical'
-                          ? 'bg-red-100 text-red-700'
-                          : incident.severity === 'warning'
-                          ? 'bg-yellow-100 text-yellow-700'
-                          : 'bg-blue-100 text-blue-700'
-                      }`}>
-                        {incident.severity}
-                      </span>
-                    </div>
-                    <p className="text-sm text-slate-600 mb-2">
-                      {incident.id} · {incident.server}
-                    </p>
-                    <div className="flex items-center gap-2 text-sm">
-                      <Clock className="w-4 h-4 text-slate-500" />
-                      <span className="text-slate-600">{incident.time}</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
-                    incident.status === 'active'
-                      ? 'bg-red-100 text-red-700'
-                      : incident.status === 'investigating'
-                      ? 'bg-yellow-100 text-yellow-700'
-                      : incident.status === 'monitoring'
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'bg-green-100 text-green-700'
-                  }`}>
-                    {incident.status}
-                  </span>
+        <div
+          className="rounded-2xl p-6"
+          style={{
+            background: "rgba(255, 255, 255, 0.7)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            border: "1px solid rgba(255, 255, 255, 0.8)",
+            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.08)",
+          }}
+        >
+          <h3 className="text-lg font-semibold text-slate-900">Severity Mix</h3>
+          <p className="mt-1 text-sm text-slate-600">
+            Derived from `severity` in the incident response
+          </p>
+          {isLoading ? (
+            <div className="space-y-4 pt-6">
+              <Skeleton className="h-6 w-28" />
+              <Skeleton className="h-[260px] w-full" />
+            </div>
+          ) : severityData.length === 0 ? (
+            <div className="flex h-[320px] items-center justify-center text-sm text-slate-500">
+              No incident data available.
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={320}>
+              <PieChart>
+                <Pie
+                  data={severityData}
+                  dataKey="value"
+                  nameKey="name"
+                  innerRadius={70}
+                  outerRadius={110}
+                  paddingAngle={4}
+                >
+                  {severityData.map((entry) => (
+                    <Cell key={entry.name} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            {severityData.map((item) => (
+              <div key={item.name} className="flex items-center gap-2">
+                <div className="h-3 w-3 rounded-full" style={{ backgroundColor: item.color }} />
+                <div>
+                  <p className="text-sm capitalize text-slate-700">{item.name}</p>
+                  <p className="text-xs text-slate-500">{item.value} incidents</p>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
+
+      <IncidentTable
+        incidents={incidents}
+        isLoading={isLoading}
+        errorMessage={errorMessage}
+        onSelectIncident={setSelectedIncident}
+      />
+      <IncidentDetailsModal
+        incident={selectedIncident}
+        open={Boolean(selectedIncident)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedIncident(null);
+          }
+        }}
+      />
+    </div>
+  );
+}
+
+function StatsCard({
+  label,
+  value,
+  icon: Icon,
+  tone = "text-slate-900",
+}: {
+  label: string;
+  value: string;
+  icon: typeof Activity;
+  tone?: string;
+}) {
+  return (
+    <div
+      className="rounded-2xl p-6 transition-all duration-300 hover:scale-[1.02]"
+      style={{
+        background: "rgba(255, 255, 255, 0.7)",
+        backdropFilter: "blur(20px)",
+        WebkitBackdropFilter: "blur(20px)",
+        border: "1px solid rgba(255, 255, 255, 0.8)",
+        boxShadow: "0 8px 32px rgba(0, 0, 0, 0.08)",
+      }}
+    >
+      <div className="mb-4 flex items-center justify-between">
+        <div
+          className="rounded-xl p-3"
+          style={{
+            background: "rgba(255, 255, 255, 0.75)",
+            border: "1px solid rgba(255, 255, 255, 0.85)",
+          }}
+        >
+          <Icon className={`h-5 w-5 ${tone}`} />
+        </div>
+      </div>
+      <p className="mb-1 text-sm text-slate-600">{label}</p>
+      <p className={`text-3xl font-semibold ${tone}`}>{value}</p>
     </div>
   );
 }
