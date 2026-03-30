@@ -28,6 +28,9 @@
 - enum은 문자열 사용
 - nullable 필드는 `null` 허용
 - 목록 응답은 가능하면 페이지네이션 메타 포함 권장
+- 프론트는 목록 API를 `배열` 또는 `items + meta` 둘 다 수용하도록 준비됨
+- 프론트는 API 우선 호출 후 실패 시 fallback mock으로 내려오도록 구현됨
+- polling 기본 틀은 10초 기준으로 준비되어 있으며 websocket 도입 전까지 재사용 가능
 
 ### 공통 에러 응답 형식
 
@@ -294,6 +297,7 @@ approve / reject용 API입니다.
 ## 6. Recovery History API
 
 프론트 recovery history 화면에서 기대하는 응답 구조입니다.
+현재 프론트는 `GET /recovery-actions`를 우선 호출하고 실패 시 `recoveryHistoryMock`으로 fallback 합니다.
 
 ### 6.1 GET `/recovery-actions`
 
@@ -355,6 +359,7 @@ GET /api/v1/recovery-actions?page=1&page_size=20&status=pending&target=server-03
 ## 7. Notification Feed API
 
 알림 센터 패널에서 기대하는 계약입니다.
+현재 프론트는 `GET /alerts/feed`를 우선 호출하고 실패 시 `alertFeedMock`으로 fallback 합니다.
 
 ### 7.1 GET `/alerts/feed`
 
@@ -560,6 +565,16 @@ GET /api/v1/recovery-actions?page=1&page_size=20&status=pending&target=server-03
 
 - `GET /incidents`
 
+### API 우선 호출 + fallback 준비 완료
+
+- `GET /incidents`
+- `GET /recovery-actions`
+- `GET /alerts/feed`
+- `POST /recovery-actions/{id}/review`
+- metrics/cards API 함수 틀
+- metrics/chart API 함수 틀
+- 공통 polling/fallback 훅
+
 ### 프론트 계약만 먼저 만든 항목
 
 - recovery approve / reject
@@ -572,9 +587,9 @@ GET /api/v1/recovery-actions?page=1&page_size=20&status=pending&target=server-03
 
 - metric 카드 수치
 - 리소스 차트
-- notification center 데이터
-- recovery history 데이터
-- approve / reject 처리 결과
+- notification center fallback 데이터
+- recovery history fallback 데이터
+- approve / reject fallback 처리 결과
 - export 준비 메시지
 - settings save 성공 상태
 
