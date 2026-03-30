@@ -1,8 +1,8 @@
 import { Outlet, NavLink } from "react-router";
-import { 
+import {
   Gauge,
-  LayoutDashboard, 
-  BarChart3, 
+  LayoutDashboard,
+  BarChart3,
   Settings, 
   Clock,
   Menu,
@@ -10,15 +10,31 @@ import {
   Activity,
   RefreshCcw
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { getAlertFeed } from "../entities/dashboard/api/getAlertFeed";
 import { toast } from "sonner";
 import { NotificationCenter } from "../features/notifications/NotificationCenter";
+import { usePollingResource } from "../shared/api/usePollingResource";
 import { alertFeedMock } from "../shared/mocks/dashboard";
 import { StatusIcon } from "../shared/ui/status-badge";
 
 export function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [unreadAlerts, setUnreadAlerts] = useState(alertFeedMock.length);
+  const [readAlertIds, setReadAlertIds] = useState<string[]>([]);
+  const announcedIdsRef = useRef<string[]>([]);
+
+  const alertsResource = usePollingResource({
+    fallbackData: alertFeedMock,
+    fallbackErrorMessage: "Alert feed API is unavailable. Showing fallback notifications.",
+    queryFn: async () => {
+      const result = await getAlertFeed();
+      return {
+        data: result.items,
+        meta: result.meta,
+      };
+    },
+  });
+  const alerts = alertsResource.data;
 
   const navItems = [
     { to: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -28,10 +44,17 @@ export function DashboardLayout() {
     { to: "/settings", label: "Settings", icon: Settings },
   ];
 
-  const latestAlert = useMemo(() => alertFeedMock[0], []);
+  const latestAlert = useMemo(() => alerts[0] ?? alertFeedMock[0], [alerts]);
+  const unreadAlerts = useMemo(
+    () => alerts.filter((alert) => !readAlertIds.includes(alert.id)).length,
+    [alerts, readAlertIds],
+  );
 
   useEffect(() => {
-    const timers = alertFeedMock.map((alert, index) =>
+    const unseenAlerts = alerts.filter((alert) => !announcedIdsRef.current.includes(alert.id));
+    announcedIdsRef.current = alerts.map((alert) => alert.id);
+
+    const timers = unseenAlerts.map((alert, index) =>
       window.setTimeout(() => {
         toast(alert.title, {
           description: alert.message,
@@ -43,7 +66,7 @@ export function DashboardLayout() {
     return () => {
       timers.forEach((timer) => window.clearTimeout(timer));
     };
-  }, []);
+  }, [alerts]);
 
   return (
     <div className="flex h-screen overflow-hidden" style={{
@@ -184,9 +207,11 @@ export function DashboardLayout() {
 
           <div className="flex items-center gap-3 md:gap-4">
             <NotificationCenter
-              alerts={alertFeedMock}
+              alerts={alerts}
               unreadCount={unreadAlerts}
-              onMarkAllRead={() => setUnreadAlerts(0)}
+              onMarkAllRead={() =>
+                setReadAlertIds((current) => Array.from(new Set([...current, ...alerts.map((alert) => alert.id)])))
+              }
             />
             <div className="hidden xl:flex items-center gap-3 px-3 py-2 rounded-xl"
               style={{
@@ -195,10 +220,12 @@ export function DashboardLayout() {
                 WebkitBackdropFilter: 'blur(12px)'
               }}
             >
-              <StatusIcon value={latestAlert.severity} variant="severity" className="h-4 w-4 text-red-500" />
+              <StatusIcon value={latestAlert?.severity ?? "info"} variant="severity" className="h-4 w-4 text-red-500" />
               <div>
                 <p className="text-xs text-slate-500">Live Alert Feed</p>
-                <p className="text-sm font-medium text-slate-800">{latestAlert.title}</p>
+                <p className="text-sm font-medium text-slate-800">
+                  {latestAlert?.title ?? (alertsResource.loading ? "Loading alerts..." : "No alerts")}
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-3 px-3 py-2 rounded-xl"

@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { reviewRecoveryAction } from "../../../entities/incident/api/reviewRecoveryAction";
 import type { Incident, RecoveryActionStatus } from "../../../entities/incident/types";
-import { recoveryHistoryMock } from "../../../shared/mocks/dashboard";
 import {
   Dialog,
   DialogContent,
@@ -76,19 +75,16 @@ export function IncidentDetailsModal({
       };
     }
 
-    const matched = recoveryHistoryMock.find((item) => item.incidentName === incident.alert_name);
-    return (
-      matched ?? {
-        id: `recovery-${incident.id}`,
-        incidentName: incident.alert_name,
-        action: "Restart affected service",
-        target: incident.instance ?? "unknown target",
-        status: "pending" as const,
-        startedAt: incident.starts_at,
-        completedAt: null,
-        summary: "Recommended action generated from the incident severity and mock analysis.",
-      }
-    );
+    return {
+      id: `recovery-${incident.id}`,
+      incidentName: incident.alert_name,
+      action: incident.alert_name === "MemoryPressure" ? "Increase cache limit" : "Restart affected service",
+      target: incident.instance ?? "unknown target",
+      status: incident.status === "pending" ? "pending" : "approved",
+      startedAt: incident.starts_at,
+      completedAt: null,
+      summary: "Recommended action generated from the incident severity and current incident state.",
+    };
   }, [incident]);
 
   const [approvalState, setApprovalState] = useState<RecoveryActionStatus>("pending");

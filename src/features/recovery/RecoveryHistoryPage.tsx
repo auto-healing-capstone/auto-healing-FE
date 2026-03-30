@@ -1,8 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Clock3, PlayCircle, RefreshCcw, Search, ShieldCheck, ThumbsDown, ThumbsUp } from "lucide-react";
 import { toast } from "sonner";
+import { getRecoveryActions } from "../../entities/dashboard/api/getRecoveryActions";
 import { reviewRecoveryAction } from "../../entities/incident/api/reviewRecoveryAction";
 import type { RecoveryHistoryItem } from "../../entities/dashboard/types";
+import { usePollingResource } from "../../shared/api/usePollingResource";
 import { recoveryHistoryMock } from "../../shared/mocks/dashboard";
 import { Input } from "../../shared/ui/input";
 import {
@@ -27,12 +29,27 @@ function formatDateTime(value: string | null) {
 }
 
 export function RecoveryHistoryPage() {
+  const recoveryResource = usePollingResource({
+    fallbackData: recoveryHistoryMock,
+    fallbackErrorMessage: "Recovery action API is unavailable. Showing fallback recovery history.",
+    queryFn: async () => {
+      const result = await getRecoveryActions();
+      return {
+        data: result.items,
+        meta: result.meta,
+      };
+    },
+  });
   const [items, setItems] = useState<RecoveryHistoryItem[]>(recoveryHistoryMock);
   const [submittingId, setSubmittingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [targetFilter, setTargetFilter] = useState("all");
   const [rangeFilter, setRangeFilter] = useState("all");
+
+  useEffect(() => {
+    setItems(recoveryResource.data);
+  }, [recoveryResource.data]);
 
   const targetOptions = useMemo(() => Array.from(new Set(items.map((item) => item.target))), [items]);
 
@@ -106,7 +123,8 @@ export function RecoveryHistoryPage() {
       <div>
         <h2 className="text-2xl font-semibold text-slate-900">Recovery History</h2>
         <p className="mt-1 text-slate-600">
-          Mock recovery actions prepared for the approval and auto-healing flow.
+          Recovery actions now try `GET /recovery-actions` first, then fall back to demo history
+          while the same review interface stays ready for the real backend.
         </p>
       </div>
 
@@ -181,6 +199,9 @@ export function RecoveryHistoryPage() {
 
         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
           <span>{filteredItems.length} results</span>
+          {recoveryResource.meta ? <span>of {recoveryResource.meta.total} total</span> : null}
+          {recoveryResource.loading ? <span>Refreshing...</span> : null}
+          {recoveryResource.isFallback ? <span>Fallback data active</span> : null}
           <button
             onClick={() => {
               setSearchQuery("");
@@ -258,7 +279,7 @@ export function RecoveryHistoryPage() {
             <div className="p-10 text-center">
               <p className="text-sm font-medium text-slate-900">No recovery actions match this filter</p>
               <p className="mt-2 text-sm text-slate-500">
-                Try a different status, target, or date range to explore the mock history.
+                Try a different status, target, or date range while the live or fallback history refreshes.
               </p>
             </div>
           ) : null}

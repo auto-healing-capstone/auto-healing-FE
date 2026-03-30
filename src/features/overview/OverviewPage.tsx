@@ -1,56 +1,64 @@
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { AlertCircle, CheckCircle2, ServerCrash } from "lucide-react";
+import { getMetricCards } from "../../entities/dashboard/api/getMetricCards";
+import { getOverviewChart } from "../../entities/dashboard/api/getOverviewChart";
 import { getIncidentFlowStage } from "../../entities/incident/status";
 import { getIncidents } from "../../entities/incident/api/getIncidents";
 import type { DashboardState } from "../../entities/dashboard/types";
 import type { Incident } from "../../entities/incident/types";
+import { usePollingResource } from "../../shared/api/usePollingResource";
 import { IncidentTable } from "./components/IncidentTable";
 import { MetricCard } from "./components/MetricCard";
 import { OverviewChart } from "./components/OverviewChart";
 import { IncidentDetailsModal } from "../incidents/components/IncidentDetailsModal";
 import {
   fallbackIncidentMock,
-  initialDashboardState,
+  metricCardsMock,
+  overviewChartMock,
 } from "../../shared/mocks/dashboard";
 
 export function OverviewPage() {
-  const [dashboardState, setDashboardState] = useState<DashboardState>(initialDashboardState);
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
 
-  useEffect(() => {
-    let isMounted = true;
+  const incidentsResource = usePollingResource({
+    fallbackData: fallbackIncidentMock,
+    fallbackErrorMessage:
+      "Incident API is unavailable. Showing fallback incidents while metric cards and charts continue using mock data.",
+    queryFn: async () => {
+      const result = await getIncidents();
+      return {
+        data: result.items,
+        meta: result.meta,
+      };
+    },
+  });
 
-    async function loadIncidents() {
-      try {
-        const data = await getIncidents();
-        if (!isMounted) {
-          return;
-        }
-        setDashboardState((currentState) => ({
-          ...currentState,
-          incidents: data,
-          loading: false,
-          error: null,
-        }));
-      } catch {
-        if (!isMounted) {
-          return;
-        }
-        setDashboardState((currentState) => ({
-          ...currentState,
-          incidents: fallbackIncidentMock,
-          loading: false,
-          error: "Incident API is unavailable. Showing fallback incidents while metric cards and charts continue using mock data.",
-        }));
-      }
-    }
+  const metricsResource = usePollingResource({
+    fallbackData: metricCardsMock,
+    fallbackErrorMessage: "Metric card API is unavailable. Showing fallback metric cards.",
+    queryFn: async () => ({
+      data: await getMetricCards(),
+    }),
+  });
 
-    loadIncidents();
+  const chartResource = usePollingResource({
+    fallbackData: overviewChartMock,
+    fallbackErrorMessage: "Chart API is unavailable. Showing fallback chart data.",
+    queryFn: async () => ({
+      data: await getOverviewChart(),
+    }),
+  });
 
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  const dashboardState: DashboardState = useMemo(
+    () => ({
+      incidents: incidentsResource.data,
+      metrics: metricsResource.data,
+      chartData: chartResource.data,
+      loading: incidentsResource.loading || metricsResource.loading || chartResource.loading,
+      error: incidentsResource.error ?? metricsResource.error ?? chartResource.error,
+    }),
+    [chartResource.data, chartResource.error, chartResource.loading, incidentsResource.data, incidentsResource.error, incidentsResource.loading, metricsResource.data, metricsResource.error, metricsResource.loading],
+  );
 
   const activeCount = dashboardState.incidents.filter((incident) => {
     const stage = getIncidentFlowStage(incident.status);
@@ -63,8 +71,8 @@ export function OverviewPage() {
       <div className="flex flex-col gap-2">
         <h2 className="text-2xl font-semibold text-slate-900">Dashboard</h2>
         <p className="text-slate-600">
-          Live incident logs come from the backend API, while metric cards and charts are mocked
-          until metric endpoints are ready.
+          Incident, metric, and chart panels now try backend APIs first and automatically fall back
+          to demo data while polling stays ready for websocket replacement.
         </p>
       </div>
 
@@ -120,7 +128,7 @@ export function OverviewPage() {
 
       <IncidentTable
         incidents={dashboardState.incidents}
-        isLoading={dashboardState.loading}
+        isLoading={incidentsResource.loading}
         errorMessage={dashboardState.error}
         onSelectIncident={setSelectedIncident}
       />
