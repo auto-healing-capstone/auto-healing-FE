@@ -1,3 +1,4 @@
+import { apiClient } from "../../../shared/api/client";
 import type {
   RecoveryActionDecision,
   ReviewRecoveryActionPayload,
@@ -15,21 +16,31 @@ function toNextStatus(decision: RecoveryActionDecision) {
 export async function reviewRecoveryAction(
   payload: ReviewRecoveryActionPayload,
 ): Promise<ReviewRecoveryActionResult> {
-  await delay(450);
+  try {
+    const response = await apiClient.post<ReviewRecoveryActionResult>(
+      `/recovery-actions/${payload.recoveryActionId}/review`,
+      payload,
+    );
 
-  const reviewedAt = new Date().toISOString();
-  const nextStatus = toNextStatus(payload.decision);
+    return response.data;
+  } catch (error) {
+    // Keep the current demo flow working until the backend review endpoint is ready.
+    await delay(450);
 
-  return {
-    incidentId: payload.incidentId,
-    recoveryActionId: payload.recoveryActionId,
-    decision: payload.decision,
-    nextStatus,
-    reviewedAt,
-    reviewedBy: payload.requestedBy,
-    message:
-      payload.decision === "approve"
-        ? `Recovery action approved for ${payload.target ?? "selected target"}.`
-        : `Recovery action rejected for ${payload.target ?? "selected target"}.`,
-  };
+    const reviewedAt = new Date().toISOString();
+    const nextStatus = toNextStatus(payload.decision);
+
+    return {
+      incidentId: payload.incidentId,
+      recoveryActionId: payload.recoveryActionId,
+      decision: payload.decision,
+      nextStatus,
+      reviewedAt,
+      reviewedBy: payload.requestedBy,
+      message:
+        payload.decision === "approve"
+          ? `Recovery action approved for ${payload.target ?? "selected target"}.`
+          : `Recovery action rejected for ${payload.target ?? "selected target"}.`,
+    };
+  }
 }
