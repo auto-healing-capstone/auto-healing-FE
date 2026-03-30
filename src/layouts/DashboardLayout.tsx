@@ -1,25 +1,49 @@
 import { Outlet, NavLink } from "react-router";
 import { 
+  Gauge,
   LayoutDashboard, 
   BarChart3, 
   Settings, 
-  Bell, 
   Clock,
   Menu,
   X,
-  Activity
+  Activity,
+  RefreshCcw
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import { NotificationCenter } from "../features/notifications/NotificationCenter";
+import { alertFeedMock } from "../shared/mocks/dashboard";
+import { StatusIcon } from "../shared/ui/status-badge";
 
 export function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [unreadAlerts, setUnreadAlerts] = useState(alertFeedMock.length);
 
   const navItems = [
     { to: "/", label: "Dashboard", icon: LayoutDashboard },
     { to: "/analytics", label: "Incidents", icon: Activity },
     { to: "/reports", label: "Analytics", icon: BarChart3 },
+    { to: "/recovery", label: "Recovery", icon: RefreshCcw },
     { to: "/settings", label: "Settings", icon: Settings },
   ];
+
+  const latestAlert = useMemo(() => alertFeedMock[0], []);
+
+  useEffect(() => {
+    const timers = alertFeedMock.map((alert, index) =>
+      window.setTimeout(() => {
+        toast(alert.title, {
+          description: alert.message,
+          icon: <StatusIcon value={alert.severity} variant="severity" className="h-4 w-4" />,
+        });
+      }, 1200 * (index + 1)),
+    );
+
+    return () => {
+      timers.forEach((timer) => window.clearTimeout(timer));
+    };
+  }, []);
 
   return (
     <div className="flex h-screen overflow-hidden" style={{
@@ -109,7 +133,7 @@ export function DashboardLayout() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="h-20 flex items-center justify-between px-8"
+        <header className="h-20 flex items-center justify-between px-4 md:px-8"
           style={{
             background: 'rgba(255, 255, 255, 0.4)',
             backdropFilter: 'blur(20px)',
@@ -126,32 +150,57 @@ export function DashboardLayout() {
           </button>
           
           <div className="flex items-center gap-3">
-            <Clock className="w-5 h-5 text-slate-600" />
-            <select className="px-4 py-2 rounded-xl border-none font-medium text-sm text-slate-700 cursor-pointer"
+            <div className="hidden xl:flex items-center gap-3 rounded-2xl px-4 py-2.5"
               style={{
                 background: 'rgba(255, 255, 255, 0.6)',
                 backdropFilter: 'blur(12px)',
                 WebkitBackdropFilter: 'blur(12px)'
               }}
             >
-              <option>Last 24 Hours</option>
-              <option>Last 7 Days</option>
-              <option>Last 30 Days</option>
-              <option>Custom Range</option>
-            </select>
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 text-white shadow-lg">
+                <Gauge className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Presentation View</p>
+                <p className="text-sm font-semibold text-slate-800">Live Incident Operations Board</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Clock className="w-5 h-5 text-slate-600" />
+              <select className="px-3 py-2 rounded-xl border-none font-medium text-sm text-slate-700 cursor-pointer md:px-4"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.6)',
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)'
+                }}
+              >
+                <option>Last 24 Hours</option>
+                <option>Last 7 Days</option>
+                <option>Last 30 Days</option>
+                <option>Custom Range</option>
+              </select>
+            </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            <button className="p-2.5 rounded-xl relative"
+          <div className="flex items-center gap-3 md:gap-4">
+            <NotificationCenter
+              alerts={alertFeedMock}
+              unreadCount={unreadAlerts}
+              onMarkAllRead={() => setUnreadAlerts(0)}
+            />
+            <div className="hidden xl:flex items-center gap-3 px-3 py-2 rounded-xl"
               style={{
                 background: 'rgba(255, 255, 255, 0.6)',
                 backdropFilter: 'blur(12px)',
                 WebkitBackdropFilter: 'blur(12px)'
               }}
             >
-              <Bell className="w-5 h-5 text-slate-700" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
-            </button>
+              <StatusIcon value={latestAlert.severity} variant="severity" className="h-4 w-4 text-red-500" />
+              <div>
+                <p className="text-xs text-slate-500">Live Alert Feed</p>
+                <p className="text-sm font-medium text-slate-800">{latestAlert.title}</p>
+              </div>
+            </div>
             <div className="flex items-center gap-3 px-3 py-2 rounded-xl"
               style={{
                 background: 'rgba(255, 255, 255, 0.6)',
@@ -171,8 +220,10 @@ export function DashboardLayout() {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto p-8">
-          <Outlet />
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 xl:p-8 2xl:px-10 2xl:py-8">
+          <div className="mx-auto w-full max-w-[1680px]">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>
