@@ -5,6 +5,7 @@ export type IncidentFlowStage =
   | "warning"
   | "incident"
   | "awaiting_approval"
+  | "approved"
   | "recovering"
   | "resolved"
   | "failed";
@@ -18,6 +19,7 @@ export function getIncidentFlowStage(status: string): IncidentFlowStage {
     case "pending":
       return "awaiting_approval";
     case "approved":
+      return "approved";
     case "running":
       return "recovering";
     case "resolved":
@@ -43,6 +45,8 @@ export function getIncidentFlowLabel(status: string) {
       return "Incident";
     case "awaiting_approval":
       return "Awaiting Approval";
+    case "approved":
+      return "Approved";
     case "recovering":
       return "Recovering";
     case "resolved":
@@ -58,6 +62,7 @@ export function getIncidentFlowChartData(statuses: string[]) {
     warning: 0,
     incident: 0,
     awaiting_approval: 0,
+    approved: 0,
     recovering: 0,
     resolved: 0,
     failed: 0,
@@ -72,6 +77,7 @@ export function getIncidentFlowChartData(statuses: string[]) {
     { key: "warning", label: "Warning", value: counts.warning, color: "#f59e0b" },
     { key: "incident", label: "Incident", value: counts.incident, color: "#ef4444" },
     { key: "awaiting_approval", label: "Awaiting Approval", value: counts.awaiting_approval, color: "#f97316" },
+    { key: "approved", label: "Approved", value: counts.approved, color: "#06b6d4" },
     { key: "recovering", label: "Recovering", value: counts.recovering, color: "#3b82f6" },
     { key: "resolved", label: "Resolved", value: counts.resolved, color: "#14b8a6" },
     { key: "failed", label: "Failed", value: counts.failed, color: "#64748b" },

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import type { Incident } from "../../../entities/incident/types";
 import {
@@ -40,7 +40,7 @@ function formatDateTime(value: string | null) {
   }).format(new Date(value));
 }
 
-export function IncidentTable({
+function IncidentTableComponent({
   incidents,
   isLoading,
   errorMessage,
@@ -228,3 +228,5 @@ export function IncidentTable({
     </div>
   );
 }
+
+export const IncidentTable = memo(IncidentTableComponent);

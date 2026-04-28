@@ -1,5 +1,5 @@
 import { Bell, CheckCheck, Filter, ShieldAlert } from "lucide-react";
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import type { AlertFeedItem } from "../../entities/dashboard/types";
 import { ScrollArea } from "../../shared/ui/scroll-area";
 import {
@@ -21,26 +21,25 @@ function formatDateTime(value: string) {
   }).format(new Date(value));
 }
 
-export function NotificationCenter({
+function NotificationCenterComponent({
   alerts,
   unreadCount,
+  readAlertIds,
+  onMarkRead,
   onMarkAllRead,
 }: {
   alerts: AlertFeedItem[];
   unreadCount: number;
+  readAlertIds: string[];
+  onMarkRead: (id: string) => void;
   onMarkAllRead: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
-  const [readIds, setReadIds] = useState<string[]>([]);
 
   const visibleAlerts = useMemo(() => {
-    return alerts.filter((alert) => (showUnreadOnly ? !readIds.includes(alert.id) : true));
-  }, [alerts, readIds, showUnreadOnly]);
-
-  function markAsRead(id: string) {
-    setReadIds((current) => (current.includes(id) ? current : [...current, id]));
-  }
+    return alerts.filter((alert) => (showUnreadOnly ? !readAlertIds.includes(alert.id) : true));
+  }, [alerts, readAlertIds, showUnreadOnly]);
 
   function handleOpenChange(nextOpen: boolean) {
     setOpen(nextOpen);
@@ -50,7 +49,6 @@ export function NotificationCenter({
   }
 
   function handleMarkAllRead() {
-    setReadIds(alerts.map((alert) => alert.id));
     onMarkAllRead();
   }
 
@@ -127,12 +125,12 @@ export function NotificationCenter({
         <ScrollArea className="flex-1">
           <div className="space-y-3 p-4">
             {visibleAlerts.map((alert) => {
-              const isRead = readIds.includes(alert.id);
+              const isRead = readAlertIds.includes(alert.id);
 
               return (
                 <button
                   key={alert.id}
-                  onClick={() => markAsRead(alert.id)}
+                  onClick={() => onMarkRead(alert.id)}
                   className={`w-full rounded-2xl border p-4 text-left transition ${
                     isRead
                       ? "border-slate-200/70 bg-white/60"
@@ -174,6 +172,8 @@ export function NotificationCenter({
     </Sheet>
   );
 }
+
+export const NotificationCenter = memo(NotificationCenterComponent);
 
 function SummaryCard({ label, value }: { label: string; value: string }) {
   return (

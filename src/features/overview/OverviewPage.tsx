@@ -4,7 +4,6 @@ import { getMetricCards } from "../../entities/dashboard/api/getMetricCards";
 import { getOverviewChart } from "../../entities/dashboard/api/getOverviewChart";
 import { getIncidentFlowStage } from "../../entities/incident/status";
 import { getIncidents } from "../../entities/incident/api/getIncidents";
-import type { DashboardState } from "../../entities/dashboard/types";
 import type { Incident } from "../../entities/incident/types";
 import { usePollingResource } from "../../shared/api/usePollingResource";
 import { IncidentTable } from "./components/IncidentTable";
@@ -21,6 +20,7 @@ export function OverviewPage() {
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
 
   const incidentsResource = usePollingResource({
+    cacheKey: "overview-incidents",
     fallbackData: fallbackIncidentMock,
     fallbackErrorMessage:
       "Incident API is unavailable. Showing fallback incidents while metric cards and charts continue using mock data.",
@@ -34,6 +34,7 @@ export function OverviewPage() {
   });
 
   const metricsResource = usePollingResource({
+    cacheKey: "overview-metrics",
     fallbackData: metricCardsMock,
     fallbackErrorMessage: "Metric card API is unavailable. Showing fallback metric cards.",
     queryFn: async () => ({
@@ -42,6 +43,7 @@ export function OverviewPage() {
   });
 
   const chartResource = usePollingResource({
+    cacheKey: "overview-chart",
     fallbackData: overviewChartMock,
     fallbackErrorMessage: "Chart API is unavailable. Showing fallback chart data.",
     queryFn: async () => ({
@@ -49,22 +51,26 @@ export function OverviewPage() {
     }),
   });
 
-  const dashboardState: DashboardState = useMemo(
-    () => ({
-      incidents: incidentsResource.data,
-      metrics: metricsResource.data,
-      chartData: chartResource.data,
-      loading: incidentsResource.loading || metricsResource.loading || chartResource.loading,
-      error: incidentsResource.error ?? metricsResource.error ?? chartResource.error,
-    }),
-    [chartResource.data, chartResource.error, chartResource.loading, incidentsResource.data, incidentsResource.error, incidentsResource.loading, metricsResource.data, metricsResource.error, metricsResource.loading],
-  );
+  const incidentSummary = useMemo(() => {
+    const incidents = incidentsResource.data;
+    const isLoading = incidentsResource.loading;
 
-  const activeCount = dashboardState.incidents.filter((incident) => {
-    const stage = getIncidentFlowStage(incident.status);
-    return stage === "incident" || stage === "awaiting_approval" || stage === "recovering";
-  }).length;
-  const resolvedCount = dashboardState.incidents.filter((incident) => getIncidentFlowStage(incident.status) === "resolved").length;
+    const activeCount = incidents.filter((incident) => {
+      const stage = getIncidentFlowStage(incident.status);
+      return stage === "incident" || stage === "awaiting_approval" || stage === "recovering";
+    }).length;
+    const resolvedCount = incidents.filter((incident) => getIncidentFlowStage(incident.status) === "resolved").length;
+
+    return {
+      incidents,
+      isLoading,
+      activeCount,
+      resolvedCount,
+    };
+  }, [incidentsResource.data, incidentsResource.loading]);
+
+  const metrics = metricsResource.data;
+  const chartData = chartResource.data;
 
   return (
     <div className="mx-auto max-w-[1440px] space-y-6">
@@ -77,13 +83,13 @@ export function OverviewPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-        {dashboardState.metrics.map((metric) => (
+        {metrics.map((metric) => (
           <MetricCard key={metric.key} metric={metric} />
         ))}
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.8fr_1fr]">
-        <OverviewChart data={dashboardState.chartData} />
+        <OverviewChart data={chartData} />
 
         <div
           className="rounded-2xl p-6"
@@ -103,33 +109,33 @@ export function OverviewPage() {
           <div className="mt-6 space-y-4">
             <SummaryCard
               label="Total Incidents"
-              value={dashboardState.loading ? "--" : String(dashboardState.incidents.length)}
+              value={incidentSummary.isLoading ? "--" : String(incidentSummary.incidents.length)}
               icon={ServerCrash}
               tone="text-slate-900"
-              isLoading={dashboardState.loading}
+              isLoading={incidentSummary.isLoading}
             />
             <SummaryCard
               label="Active Flow"
-              value={dashboardState.loading ? "--" : String(activeCount)}
+              value={incidentSummary.isLoading ? "--" : String(incidentSummary.activeCount)}
               icon={AlertCircle}
               tone="text-red-600"
-              isLoading={dashboardState.loading}
+              isLoading={incidentSummary.isLoading}
             />
             <SummaryCard
               label="Resolved"
-              value={dashboardState.loading ? "--" : String(resolvedCount)}
+              value={incidentSummary.isLoading ? "--" : String(incidentSummary.resolvedCount)}
               icon={CheckCircle2}
               tone="text-green-600"
-              isLoading={dashboardState.loading}
+              isLoading={incidentSummary.isLoading}
             />
           </div>
         </div>
       </div>
 
       <IncidentTable
-        incidents={dashboardState.incidents}
+        incidents={incidentSummary.incidents}
         isLoading={incidentsResource.loading}
-        errorMessage={dashboardState.error}
+        errorMessage={incidentsResource.error}
         onSelectIncident={setSelectedIncident}
       />
       <IncidentDetailsModal

@@ -30,6 +30,7 @@ function formatDateTime(value: string | null) {
 
 export function RecoveryHistoryPage() {
   const recoveryResource = usePollingResource({
+    cacheKey: "recovery-history",
     fallbackData: recoveryHistoryMock,
     fallbackErrorMessage: "Recovery action API is unavailable. Showing fallback recovery history.",
     queryFn: async () => {

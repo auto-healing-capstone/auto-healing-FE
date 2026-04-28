@@ -24,6 +24,7 @@ export function DashboardLayout() {
   const announcedIdsRef = useRef<string[]>([]);
 
   const alertsResource = usePollingResource({
+    cacheKey: "dashboard-alert-feed",
     fallbackData: alertFeedMock,
     fallbackErrorMessage: "Alert feed API is unavailable. Showing fallback notifications.",
     queryFn: async () => {
@@ -36,11 +37,14 @@ export function DashboardLayout() {
   });
   const alerts = alertsResource.data;
 
-  const navItems = [
+  const primaryNavItems = [
     { to: "/", label: "Dashboard", icon: LayoutDashboard },
     { to: "/analytics", label: "Incidents", icon: Activity },
-    { to: "/reports", label: "Analytics", icon: BarChart3 },
     { to: "/recovery", label: "Recovery", icon: RefreshCcw },
+  ];
+
+  const secondaryNavItems = [
+    { to: "/reports", label: "Analytics", icon: BarChart3 },
     { to: "/settings", label: "Settings", icon: Settings },
   ];
 
@@ -102,32 +106,90 @@ export function DashboardLayout() {
           </button>
         </div>
         
-        <nav className="p-4 space-y-2">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to === "/"}
-              onClick={() => setSidebarOpen(false)}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                  isActive
-                    ? "text-blue-600"
-                    : "text-slate-700 hover:bg-white/40"
-                }`
-              }
-              style={({ isActive }) => isActive ? {
-                background: 'rgba(255, 255, 255, 0.8)',
-                backdropFilter: 'blur(12px)',
-                WebkitBackdropFilter: 'blur(12px)',
-                boxShadow: '0 4px 16px rgba(59, 130, 246, 0.15)'
-              } : {}}
-            >
-              <item.icon className="w-5 h-5" />
-              <span className="font-medium">{item.label}</span>
-            </NavLink>
-          ))}
+        <nav className="p-4 space-y-5">
+          <div>
+            <p className="px-4 pb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Demo Flow
+            </p>
+            <div className="space-y-2">
+              {primaryNavItems.map((item, index) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.to === "/"}
+                  onClick={() => setSidebarOpen(false)}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                      isActive
+                        ? "text-blue-600"
+                        : "text-slate-700 hover:bg-white/40"
+                    }`
+                  }
+                  style={({ isActive }) => isActive ? {
+                    background: 'rgba(255, 255, 255, 0.8)',
+                    backdropFilter: 'blur(12px)',
+                    WebkitBackdropFilter: 'blur(12px)',
+                    boxShadow: '0 4px 16px rgba(59, 130, 246, 0.15)'
+                  } : {}}
+                >
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/70 text-[11px] font-semibold text-slate-500">
+                    {index + 1}
+                  </span>
+                  <item.icon className="w-5 h-5" />
+                  <span className="font-medium">{item.label}</span>
+                </NavLink>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="px-4 pb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Support Screens
+            </p>
+            <div className="space-y-2">
+              {secondaryNavItems.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.to === "/"}
+                  onClick={() => setSidebarOpen(false)}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                      isActive
+                        ? "text-blue-600"
+                        : "text-slate-700 hover:bg-white/40"
+                    }`
+                  }
+                  style={({ isActive }) => isActive ? {
+                    background: 'rgba(255, 255, 255, 0.8)',
+                    backdropFilter: 'blur(12px)',
+                    WebkitBackdropFilter: 'blur(12px)',
+                    boxShadow: '0 4px 16px rgba(59, 130, 246, 0.15)'
+                  } : {}}
+                >
+                  <item.icon className="w-5 h-5" />
+                  <span className="font-medium">{item.label}</span>
+                </NavLink>
+              ))}
+            </div>
+          </div>
         </nav>
+
+        <div className="absolute right-4 bottom-[9.5rem] left-4 rounded-xl p-4"
+          style={{
+            background: 'rgba(255, 255, 255, 0.58)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            border: '1px solid rgba(255, 255, 255, 0.7)'
+          }}
+        >
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Presentation Path</p>
+          <div className="mt-3 space-y-2 text-sm text-slate-700">
+            <p>1. Dashboard for live overview and alerts</p>
+            <p>2. Incidents for diagnosis and approval</p>
+            <p>3. Recovery for action outcome tracking</p>
+          </div>
+        </div>
 
         <div className="absolute bottom-6 left-4 right-4 p-4 rounded-xl"
           style={{
@@ -209,6 +271,10 @@ export function DashboardLayout() {
             <NotificationCenter
               alerts={alerts}
               unreadCount={unreadAlerts}
+              readAlertIds={readAlertIds}
+              onMarkRead={(alertId) =>
+                setReadAlertIds((current) => (current.includes(alertId) ? current : [...current, alertId]))
+              }
               onMarkAllRead={() =>
                 setReadAlertIds((current) => Array.from(new Set([...current, ...alerts.map((alert) => alert.id)])))
               }
