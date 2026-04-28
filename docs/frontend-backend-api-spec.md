@@ -2,6 +2,11 @@
 
 이 문서는 현재 프론트엔드 구현을 기준으로 정리한 백엔드 연동 명세입니다.
 
+> 이 문서는 `현재 FE 구현/호환 기준` 참고용입니다.
+> 백엔드와 최종 합의할 목표 계약은
+> [frontend-backend-target-contract.md](./frontend-backend-target-contract.md)
+> 문서를 기준으로 확인하는 것을 권장합니다.
+
 목적은 다음과 같습니다.
 
 - 프론트가 이미 사용 중인 API 계약을 명확히 공유
