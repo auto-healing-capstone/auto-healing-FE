@@ -38,11 +38,11 @@ export function IncidentsPage() {
 
     async function loadIncidents() {
       try {
-        const data = await getIncidents();
+        const result = await getIncidents();
         if (!isMounted) {
           return;
         }
-        setIncidents(data);
+        setIncidents(result.items);
         setErrorMessage(null);
       } catch {
         if (!isMounted) {
