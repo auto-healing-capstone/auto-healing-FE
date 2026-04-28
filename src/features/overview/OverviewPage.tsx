@@ -20,6 +20,7 @@ export function OverviewPage() {
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
 
   const incidentsResource = usePollingResource({
+    cacheKey: "overview-incidents",
     fallbackData: fallbackIncidentMock,
     fallbackErrorMessage:
       "Incident API is unavailable. Showing fallback incidents while metric cards and charts continue using mock data.",
@@ -33,6 +34,7 @@ export function OverviewPage() {
   });
 
   const metricsResource = usePollingResource({
+    cacheKey: "overview-metrics",
     fallbackData: metricCardsMock,
     fallbackErrorMessage: "Metric card API is unavailable. Showing fallback metric cards.",
     queryFn: async () => ({
@@ -41,6 +43,7 @@ export function OverviewPage() {
   });
 
   const chartResource = usePollingResource({
+    cacheKey: "overview-chart",
     fallbackData: overviewChartMock,
     fallbackErrorMessage: "Chart API is unavailable. Showing fallback chart data.",
     queryFn: async () => ({
@@ -68,12 +71,6 @@ export function OverviewPage() {
 
   const metrics = metricsResource.data;
   const chartData = chartResource.data;
-
-  const activeCount = incidentSummary.incidents.filter((incident) => {
-    const stage = getIncidentFlowStage(incident.status);
-    return stage === "incident" || stage === "awaiting_approval" || stage === "recovering";
-  }).length;
-  const resolvedCount = incidentSummary.incidents.filter((incident) => getIncidentFlowStage(incident.status) === "resolved").length;
 
   return (
     <div className="mx-auto max-w-[1440px] space-y-6">
@@ -119,14 +116,14 @@ export function OverviewPage() {
             />
             <SummaryCard
               label="Active Flow"
-              value={incidentSummary.isLoading ? "--" : String(activeCount)}
+              value={incidentSummary.isLoading ? "--" : String(incidentSummary.activeCount)}
               icon={AlertCircle}
               tone="text-red-600"
               isLoading={incidentSummary.isLoading}
             />
             <SummaryCard
               label="Resolved"
-              value={incidentSummary.isLoading ? "--" : String(resolvedCount)}
+              value={incidentSummary.isLoading ? "--" : String(incidentSummary.resolvedCount)}
               icon={CheckCircle2}
               tone="text-green-600"
               isLoading={incidentSummary.isLoading}

@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Cpu, HardDrive, TrendingDown, TrendingUp } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { MetricItem } from "../../../entities/dashboard/types";
@@ -49,7 +50,7 @@ function Sparkline({ values }: { values: number[] }) {
   );
 }
 
-export function MetricCard({ metric }: { metric: MetricItem }) {
+function MetricCardComponent({ metric }: { metric: MetricItem }) {
   const config = metricConfig[metric.key];
   const Icon = config.icon;
   const isUp = metric.trend === "up";
@@ -106,3 +107,5 @@ export function MetricCard({ metric }: { metric: MetricItem }) {
     </div>
   );
 }
+
+export const MetricCard = memo(MetricCardComponent);

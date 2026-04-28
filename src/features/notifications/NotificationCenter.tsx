@@ -1,5 +1,5 @@
 import { Bell, CheckCheck, Filter, ShieldAlert } from "lucide-react";
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import type { AlertFeedItem } from "../../entities/dashboard/types";
 import { ScrollArea } from "../../shared/ui/scroll-area";
 import {
@@ -21,7 +21,7 @@ function formatDateTime(value: string) {
   }).format(new Date(value));
 }
 
-export function NotificationCenter({
+function NotificationCenterComponent({
   alerts,
   unreadCount,
   readAlertIds,
@@ -172,6 +172,8 @@ export function NotificationCenter({
     </Sheet>
   );
 }
+
+export const NotificationCenter = memo(NotificationCenterComponent);
 
 function SummaryCard({ label, value }: { label: string; value: string }) {
   return (

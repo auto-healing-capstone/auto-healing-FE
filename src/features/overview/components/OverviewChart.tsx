@@ -1,3 +1,4 @@
+import { memo } from "react";
 import {
   Area,
   AreaChart,
@@ -9,7 +10,7 @@ import {
 } from "recharts";
 import type { ChartPoint } from "../../../entities/dashboard/types";
 
-export function OverviewChart({ data }: { data: ChartPoint[] }) {
+function OverviewChartComponent({ data }: { data: ChartPoint[] }) {
   return (
     <div
       className="rounded-2xl p-6"
@@ -79,3 +80,5 @@ function LegendDot({ color, label }: { color: string; label: string }) {
     </div>
   );
 }
+
+export const OverviewChart = memo(OverviewChartComponent);
