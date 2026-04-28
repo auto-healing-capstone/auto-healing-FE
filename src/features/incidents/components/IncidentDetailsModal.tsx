@@ -12,6 +12,7 @@ import {
 import { StatusBadge } from "../../../shared/ui/status-badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../shared/ui/tabs";
 import { IncidentTimeline } from "./IncidentTimeline";
+import { getIncidentFlowStage } from "../../../entities/incident/status";
 
 function formatDateTime(value: string | null) {
   if (!value) {
@@ -48,6 +49,77 @@ function getMetricSnapshots(incident: Incident) {
       value: incident.alert_name === "DiskFull" ? "81%" : "56%",
       change: incident.alert_name === "DiskFull" ? "+11%" : "-2%",
       tone: "text-blue-600",
+    },
+  ];
+}
+
+function PreviewNotice({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/80 px-4 py-3">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{title}</p>
+      <p className="mt-1 text-sm leading-6 text-slate-600">{description}</p>
+    </div>
+  );
+}
+
+function getStoryEvents(incident: Incident, approvalState: RecoveryActionStatus) {
+  const flowStage = getIncidentFlowStage(incident.status);
+  const updatedAt = incident.updated_at ?? incident.starts_at;
+
+  return [
+    {
+      title: "Incident detected",
+      timestamp: formatDateTime(incident.starts_at),
+      description: incident.summary ?? "Alert threshold crossed and the incident entered the dashboard flow.",
+    },
+    {
+      title: "Analysis prepared",
+      timestamp: formatDateTime(updatedAt),
+      description:
+        incident.description ??
+        "Diagnostic context and recommended operator-facing explanation are ready for review.",
+    },
+    {
+      title:
+        approvalState === "approved"
+          ? "Recovery approved"
+          : approvalState === "rejected"
+            ? "Recovery rejected"
+            : flowStage === "awaiting_approval"
+              ? "Approval requested"
+              : "Recovery staged",
+      timestamp: formatDateTime(updatedAt),
+      description:
+        approvalState === "approved"
+          ? "Operator approval has been recorded and the action is ready to transition into execution."
+          : approvalState === "rejected"
+            ? "Operator rejected the suggested action and the incident remains available for manual follow-up."
+            : "The recovery recommendation is visible to the operator and waiting for the next decision.",
+    },
+    {
+      title:
+        flowStage === "resolved"
+          ? "Service stabilized"
+          : flowStage === "recovering"
+            ? "Recovery in progress"
+            : flowStage === "failed"
+              ? "Recovery failed"
+              : "Resolution pending",
+      timestamp: formatDateTime(incident.ends_at ?? updatedAt),
+      description:
+        flowStage === "resolved"
+          ? "Service health returned to an acceptable range and the incident can be presented as resolved."
+          : flowStage === "recovering"
+            ? "The UI is holding space for live execution updates once the backend recovery stream is connected."
+            : flowStage === "failed"
+              ? "The current flow indicates manual intervention is still required."
+              : "This final stage remains open until backend recovery execution updates are available.",
     },
   ];
 }
@@ -100,6 +172,7 @@ export function IncidentDetailsModal({
   }
 
   const metricSnapshots = getMetricSnapshots(incident);
+  const storyEvents = getStoryEvents(incident, approvalState);
 
   async function handleDecision(decision: "approve" | "reject") {
     setIsSubmitting(true);
@@ -193,8 +266,12 @@ export function IncidentDetailsModal({
               </TabsContent>
 
               <TabsContent value="logs" className="mt-4">
-                <section>
+                <section className="space-y-4">
                   <h4 className="mb-3 font-semibold text-slate-900">Raw Logs</h4>
+                  <PreviewNotice
+                    title="Frontend Preview"
+                    description="This tab currently formats incident summary fields into a readable log preview until the backend incident detail API provides raw log lines."
+                  />
                   <div className="rounded-lg bg-slate-950 p-4 font-mono text-xs leading-6 text-slate-200">
                     <p>[INFO] Alert received for {incident.alert_name}</p>
                     <p>[WARN] Instance: {incident.instance ?? "unknown"}</p>
@@ -213,6 +290,10 @@ export function IncidentDetailsModal({
                       Demo-only metric panel prepared for backend chart integration.
                     </p>
                   </div>
+                  <PreviewNotice
+                    title="Frontend Preview"
+                    description="Metric values in this tab are presentation-safe placeholders derived from the selected incident until live detail metrics are wired in."
+                  />
                   <div className="grid gap-4 md:grid-cols-3">
                     {metricSnapshots.map((metric) => (
                       <div key={metric.label} className="rounded-xl border border-slate-200/70 bg-white/80 p-4">
@@ -237,6 +318,10 @@ export function IncidentDetailsModal({
                       <span className="font-medium text-slate-900">{incident.instance ?? "this target"}</span>.
                     </p>
                   </div>
+                  <PreviewNotice
+                    title="Frontend Preview"
+                    description="AI findings shown here are narrative placeholders so the diagnostic UI can be reviewed before backend LLM analysis responses are connected."
+                  />
                   <div className="grid gap-4 md:grid-cols-2">
                     <InfoCard label="Confidence" value="87%" />
                     <InfoCard label="Priority" value={incident.severity === "critical" ? "Immediate" : "Monitor"} />
@@ -256,6 +341,10 @@ export function IncidentDetailsModal({
                     <h4 className="font-semibold text-slate-900">Recovery Plan</h4>
                     <p className="mt-2 text-sm leading-6 text-slate-600">{recommendedAction.summary}</p>
                   </div>
+                  <PreviewNotice
+                    title="Frontend Preview"
+                    description="Recovery action details are currently inferred from incident severity and status so the operator approval UX can be tested before full backend action history is attached."
+                  />
                   <div className="grid gap-4 md:grid-cols-2">
                     <InfoCard label="Action" value={recommendedAction.action} />
                     <InfoCard label="Target" value={recommendedAction.target} />
@@ -275,6 +364,21 @@ export function IncidentDetailsModal({
             <section className="rounded-xl border border-slate-200/70 bg-white/60 p-4">
               <h4 className="mb-3 font-semibold text-slate-900">Incident Timeline</h4>
               <IncidentTimeline status={incident.status} />
+            </section>
+
+            <section className="rounded-xl border border-slate-200/70 bg-white/60 p-4">
+              <h4 className="mb-3 font-semibold text-slate-900">Story Flow</h4>
+              <div className="space-y-3">
+                {storyEvents.map((event) => (
+                  <div key={event.title} className="rounded-xl border border-white/70 bg-white/80 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-semibold text-slate-900">{event.title}</p>
+                      <span className="text-xs text-slate-500">{event.timestamp}</span>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-slate-600">{event.description}</p>
+                  </div>
+                ))}
+              </div>
             </section>
 
             <section className="rounded-xl border border-slate-200/70 bg-white/60 p-4">

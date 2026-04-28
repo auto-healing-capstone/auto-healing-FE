@@ -209,6 +209,10 @@ export function DashboardLayout() {
             <NotificationCenter
               alerts={alerts}
               unreadCount={unreadAlerts}
+              readAlertIds={readAlertIds}
+              onMarkRead={(alertId) =>
+                setReadAlertIds((current) => (current.includes(alertId) ? current : [...current, alertId]))
+              }
               onMarkAllRead={() =>
                 setReadAlertIds((current) => Array.from(new Set([...current, ...alerts.map((alert) => alert.id)])))
               }
