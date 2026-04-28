@@ -3,6 +3,7 @@ import { getIncidentFlowStage } from "../../../entities/incident/status";
 const steps = [
   { key: "incident", label: "Incident Detected" },
   { key: "awaiting_approval", label: "Awaiting Approval" },
+  { key: "approved", label: "Approved for Recovery" },
   { key: "recovering", label: "Recovery In Progress" },
   { key: "resolved", label: "Resolved" },
 ];
@@ -11,8 +12,10 @@ export function IncidentTimeline({ status }: { status: string }) {
   const stage = getIncidentFlowStage(status);
   const currentIndex =
     stage === "resolved"
-      ? 3
+      ? 4
       : stage === "recovering"
+        ? 3
+        : stage === "approved"
         ? 2
         : stage === "awaiting_approval"
           ? 1

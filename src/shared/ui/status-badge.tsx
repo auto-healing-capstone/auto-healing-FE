@@ -64,7 +64,7 @@ const statusMap: Record<string, { label: string; className: string; icon: Lucide
     icon: Clock3,
   },
   approved: {
-    label: "Recovering",
+    label: "Approved",
     className: "bg-cyan-100 text-cyan-700",
     icon: CheckCircle2,
   },
@@ -110,6 +110,8 @@ export function StatusBadge({
               ? "bg-red-100 text-red-700"
               : getIncidentFlowStage(value) === "awaiting_approval"
                 ? "bg-orange-100 text-orange-700"
+                : getIncidentFlowStage(value) === "approved"
+                  ? "bg-cyan-100 text-cyan-700"
                 : getIncidentFlowStage(value) === "recovering"
                   ? "bg-indigo-100 text-indigo-700"
                   : getIncidentFlowStage(value) === "resolved"
