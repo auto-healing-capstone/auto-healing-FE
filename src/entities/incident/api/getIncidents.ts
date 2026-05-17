@@ -4,6 +4,6 @@ import { normalizeCollectionResponse } from "../../../shared/api/utils";
 import type { Incident } from "../types";
 
 export async function getIncidents() {
-  const response = await apiClient.get<CollectionResponse<Incident>>("/incidents");
+  const response = await apiClient.get<CollectionResponse<Incident>>("/alert-events");
   return normalizeCollectionResponse(response.data);
 }
