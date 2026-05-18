@@ -16,15 +16,21 @@ function toNextStatus(decision: RecoveryActionDecision) {
 export async function reviewRecoveryAction(
   payload: ReviewRecoveryActionPayload,
 ): Promise<ReviewRecoveryActionResult> {
+  // approve / reject 엔드포인트가 분리되어 있음
+  const endpoint =
+    payload.decision === "approve"
+      ? `/recovery-actions/${payload.recoveryActionId}/approve`
+      : `/recovery-actions/${payload.recoveryActionId}/reject`;
+
   try {
-    const response = await apiClient.post<ReviewRecoveryActionResult>(
-      `/recovery-actions/${payload.recoveryActionId}/review`,
-      payload,
-    );
+    const response = await apiClient.post<ReviewRecoveryActionResult>(endpoint, {
+      reason: payload.reason,
+      requested_by: payload.requestedBy,
+    });
 
     return response.data;
-  } catch (error) {
-    // Keep the current demo flow working until the backend review endpoint is ready.
+  } catch {
+    // 백엔드 연결 전까지 데모 플로우 유지
     await delay(450);
 
     const reviewedAt = new Date().toISOString();
