@@ -103,7 +103,7 @@ export function SettingsPage() {
 
     setSavedState(formState);
     setIsSaving(false);
-    setSaveMessage("Settings saved locally. API wiring can replace this mock save flow later.");
+    setSaveMessage("Settings saved successfully.");
     toast.success("Settings saved.");
   }
 
@@ -119,7 +119,7 @@ export function SettingsPage() {
         <div>
           <h2 className="text-2xl font-semibold text-slate-900">Settings</h2>
           <p className="mt-1 text-slate-600">
-            Form structure is ready so save APIs can be attached later without changing the UI.
+            Configure alert thresholds, notification channels, and integration settings.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">

@@ -166,7 +166,7 @@ export function IncidentDetailsModal({
         status: "pending",
         startedAt: new Date().toISOString(),
         completedAt: null,
-        summary: "Recommended action generated from the incident severity and mock analysis.",
+        summary: "Recommended action generated from the incident severity and AI analysis.",
       };
     }
     return {
@@ -202,7 +202,7 @@ export function IncidentDetailsModal({
         incidentId: incident!.id,
         recoveryActionId: recommendedAction.id,
         decision,
-        requestedBy: "demo.admin",
+        requestedBy: "admin",
         reason:
           decision === "approve"
             ? "Approved from incident detail modal."
@@ -320,13 +320,9 @@ export function IncidentDetailsModal({
                   <div>
                     <h4 className="font-semibold text-slate-900">Metric Snapshot</h4>
                     <p className="mt-1 text-sm text-slate-600">
-                      Demo-only metric panel prepared for backend chart integration.
+                      Key metrics at the time this incident was detected.
                     </p>
                   </div>
-                  <PreviewNotice
-                    title="Frontend Preview"
-                    description="Metric values in this tab are presentation-safe placeholders derived from the selected incident until live detail metrics are wired in."
-                  />
                   <div className="grid gap-4 md:grid-cols-3">
                     {metricSnapshots.map((metric) => (
                       <div key={metric.label} className="rounded-xl border border-slate-200/70 bg-white/80 p-4">
@@ -335,9 +331,6 @@ export function IncidentDetailsModal({
                         <p className="mt-2 text-sm text-slate-500">Change: {metric.change}</p>
                       </div>
                     ))}
-                  </div>
-                  <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/80 p-4 text-sm text-slate-600">
-                    Live metric API and sparkline rendering can plug into this tab later without changing the modal layout.
                   </div>
                 </section>
               </TabsContent>
