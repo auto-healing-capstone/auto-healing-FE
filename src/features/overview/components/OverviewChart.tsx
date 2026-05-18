@@ -10,7 +10,7 @@ import {
 } from "recharts";
 import type { ChartPoint } from "../../../entities/dashboard/types";
 
-function OverviewChartComponent({ data }: { data: ChartPoint[] }) {
+function OverviewChartComponent({ data, isFallback }: { data: ChartPoint[]; isFallback: boolean }) {
   return (
     <div
       className="rounded-2xl p-6"
@@ -26,13 +26,15 @@ function OverviewChartComponent({ data }: { data: ChartPoint[] }) {
         <div>
           <h3 className="text-lg font-semibold text-slate-900">Resource Overview</h3>
           <p className="mt-1 text-sm text-slate-600">
-            Mock metric trend for CPU, memory, and disk usage
+            {isFallback
+              ? "Mock metric trend for CPU and memory usage"
+              : "Live metric trend for CPU, memory, and request count"}
           </p>
         </div>
         <div className="flex gap-6 text-sm">
           <LegendDot color="#3b82f6" label="CPU" />
           <LegendDot color="#8b5cf6" label="Memory" />
-          <LegendDot color="#10b981" label="Disk" />
+          <LegendDot color="#10b981" label="Requests" />
         </div>
       </div>
       <ResponsiveContainer width="100%" height={350}>
@@ -53,7 +55,8 @@ function OverviewChartComponent({ data }: { data: ChartPoint[] }) {
           </defs>
           <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" strokeOpacity={0.5} />
           <XAxis dataKey="time" stroke="#94a3b8" style={{ fontSize: "12px" }} />
-          <YAxis stroke="#94a3b8" style={{ fontSize: "12px" }} unit="%" />
+          <YAxis yAxisId="pct" stroke="#94a3b8" style={{ fontSize: "12px" }} unit="%" domain={[0, 100]} />
+          <YAxis yAxisId="req" orientation="right" stroke="#10b981" style={{ fontSize: "12px" }} />
           <Tooltip
             contentStyle={{
               background: "rgba(255, 255, 255, 0.95)",
@@ -63,9 +66,9 @@ function OverviewChartComponent({ data }: { data: ChartPoint[] }) {
               boxShadow: "0 8px 32px rgba(0, 0, 0, 0.12)",
             }}
           />
-          <Area type="monotone" dataKey="cpu" stroke="#3b82f6" strokeWidth={3} fill="url(#cpuGradient)" />
-          <Area type="monotone" dataKey="memory" stroke="#8b5cf6" strokeWidth={3} fill="url(#memoryGradient)" />
-          <Area type="monotone" dataKey="disk" stroke="#10b981" strokeWidth={3} fill="url(#diskGradient)" />
+          <Area yAxisId="pct" type="monotone" dataKey="cpu" stroke="#3b82f6" strokeWidth={3} fill="url(#cpuGradient)" />
+          <Area yAxisId="pct" type="monotone" dataKey="memory" stroke="#8b5cf6" strokeWidth={3} fill="url(#memoryGradient)" />
+          <Area yAxisId="req" type="monotone" dataKey="disk" stroke="#10b981" strokeWidth={3} fill="url(#diskGradient)" />
         </AreaChart>
       </ResponsiveContainer>
     </div>

@@ -1,11 +1,12 @@
 import { useMemo, useState } from "react";
+import { matchesDateRange, useDateRangeFilter } from "../../shared/api/useDateRangeFilter";
 import { AlertCircle, CheckCircle2, ServerCrash } from "lucide-react";
 import { getMetricCards } from "../../entities/dashboard/api/getMetricCards";
-import { getOverviewChart } from "../../entities/dashboard/api/getOverviewChart";
 import { getIncidentFlowStage } from "../../entities/incident/status";
 import { getIncidents } from "../../entities/incident/api/getIncidents";
 import type { Incident } from "../../entities/incident/types";
 import { usePollingResource } from "../../shared/api/usePollingResource";
+import { useMetricHistory } from "../../shared/api/useMetricHistory";
 import { IncidentTable } from "./components/IncidentTable";
 import { MetricCard } from "./components/MetricCard";
 import { OverviewChart } from "./components/OverviewChart";
@@ -42,18 +43,14 @@ export function OverviewPage() {
     }),
   });
 
-  const chartResource = usePollingResource({
-    cacheKey: "overview-chart",
-    fallbackData: overviewChartMock,
-    fallbackErrorMessage: "Chart API is unavailable. Showing fallback chart data.",
-    queryFn: async () => ({
-      data: await getOverviewChart(),
-    }),
-  });
+  const { history: liveChartData, isFallback: chartIsFallback } = useMetricHistory();
+
+  const dateFilter = useDateRangeFilter();
 
   const incidentSummary = useMemo(() => {
-    const incidents = incidentsResource.data;
+    const all = incidentsResource.data;
     const isLoading = incidentsResource.loading;
+    const incidents = all.filter((i) => matchesDateRange(i.starts_at, dateFilter));
 
     const activeCount = incidents.filter((incident) => {
       const stage = getIncidentFlowStage(incident.status);
@@ -61,24 +58,17 @@ export function OverviewPage() {
     }).length;
     const resolvedCount = incidents.filter((incident) => getIncidentFlowStage(incident.status) === "resolved").length;
 
-    return {
-      incidents,
-      isLoading,
-      activeCount,
-      resolvedCount,
-    };
-  }, [incidentsResource.data, incidentsResource.loading]);
-
+    return { incidents, isLoading, activeCount, resolvedCount };
+  }, [incidentsResource.data, incidentsResource.loading, dateFilter]);
   const metrics = metricsResource.data;
-  const chartData = chartResource.data;
+  const chartData = liveChartData.length > 0 ? liveChartData : overviewChartMock;
 
   return (
     <div className="mx-auto max-w-[1440px] space-y-6">
       <div className="flex flex-col gap-2">
         <h2 className="text-2xl font-semibold text-slate-900">Dashboard</h2>
         <p className="text-slate-600">
-          Incident, metric, and chart panels now try backend APIs first and automatically fall back
-          to demo data while polling stays ready for websocket replacement.
+          Incidents, metrics, and charts are fetched live from the backend and updated every 10 seconds.
         </p>
       </div>
 
@@ -89,7 +79,7 @@ export function OverviewPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.8fr_1fr]">
-        <OverviewChart data={chartData} />
+        <OverviewChart data={chartData} isFallback={chartIsFallback} />
 
         <div
           className="rounded-2xl p-6"
@@ -103,7 +93,7 @@ export function OverviewPage() {
         >
           <h3 className="text-lg font-semibold text-slate-900">Incident Snapshot</h3>
           <p className="mt-1 text-sm text-slate-600">
-            Status cards reflect the presentation flow used across the dashboard.
+            Live summary of active, recovering, and resolved incidents.
           </p>
 
           <div className="mt-6 space-y-4">
