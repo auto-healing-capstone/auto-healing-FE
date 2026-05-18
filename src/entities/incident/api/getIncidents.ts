@@ -94,12 +94,38 @@ export function toFrontendIncident(incident: BackendIncident): Incident {
   };
 }
 
+const PAGE_SIZE = 50;
+
 export async function getIncidents() {
-  const response = await apiClient.get<CollectionResponse<BackendIncident>>("/incidents");
-  const result = normalizeCollectionResponse(response.data);
+  const firstResponse = await apiClient.get<CollectionResponse<BackendIncident>>("/incidents", {
+    params: { page: 1, page_size: PAGE_SIZE },
+  });
+  const firstResult = normalizeCollectionResponse(firstResponse.data);
+
+  if (!firstResult.meta || firstResult.meta.totalPages <= 1) {
+    return {
+      items: firstResult.items.map(toFrontendIncident),
+      meta: firstResult.meta,
+    };
+  }
+
+  const remainingPages = Array.from(
+    { length: firstResult.meta.totalPages - 1 },
+    (_, i) => i + 2,
+  );
+
+  const rest = await Promise.all(
+    remainingPages.map((page) =>
+      apiClient
+        .get<CollectionResponse<BackendIncident>>("/incidents", {
+          params: { page, page_size: PAGE_SIZE },
+        })
+        .then((r) => normalizeCollectionResponse(r.data).items),
+    ),
+  );
 
   return {
-    items: result.items.map(toFrontendIncident),
-    meta: result.meta,
+    items: [...firstResult.items, ...rest.flat()].map(toFrontendIncident),
+    meta: firstResult.meta,
   };
 }
