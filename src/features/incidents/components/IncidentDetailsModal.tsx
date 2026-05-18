@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { executeHeal } from "../../../entities/incident/api/executeHeal";
+import { getIncidentRecoveryActions } from "../../../entities/incident/api/getIncidentRecoveryActions";
 import { reviewRecoveryAction } from "../../../entities/incident/api/reviewRecoveryAction";
 import type { Incident, RecoveryActionStatus } from "../../../entities/incident/types";
+import type { RecoveryHistoryItem } from "../../../entities/dashboard/types";
 import {
   Dialog,
   DialogContent,
@@ -133,38 +136,55 @@ export function IncidentDetailsModal({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const recommendedAction = useMemo(() => {
+  const [fetchedActions, setFetchedActions] = useState<RecoveryHistoryItem[]>([]);
+  const [approvalState, setApprovalState] = useState<RecoveryActionStatus>("pending");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isExecuting, setIsExecuting] = useState(false);
+
+  // 모달이 열릴 때 해당 incident의 실제 recovery actions 조회
+  useEffect(() => {
+    if (!incident || !open) {
+      setFetchedActions([]);
+      return;
+    }
+    getIncidentRecoveryActions(incident.id)
+      .then((result) => setFetchedActions(result.items))
+      .catch(() => setFetchedActions([]));
+  }, [incident?.id, open]);
+
+  const recommendedAction = useMemo((): RecoveryHistoryItem => {
+    // 백엔드에서 받아온 실제 action이 있으면 첫 번째 사용
+    if (fetchedActions.length > 0) return fetchedActions[0];
+
+    // fallback: incident 데이터로 생성
     if (!incident) {
       return {
         id: "recovery-preview",
         incidentName: "Unknown Incident",
         action: "Restart affected service",
         target: "unknown target",
-        status: "pending" as const,
+        status: "pending",
         startedAt: new Date().toISOString(),
         completedAt: null,
         summary: "Recommended action generated from the incident severity and mock analysis.",
       };
     }
-
     return {
       id: `recovery-${incident.id}`,
       incidentName: incident.alert_name,
       action: incident.alert_name === "MemoryPressure" ? "Increase cache limit" : "Restart affected service",
       target: incident.instance ?? "unknown target",
-      status: incident.status === "pending" ? "pending" : "approved",
+      status: (incident.status === "pending" ? "pending" : "approved") as RecoveryActionStatus,
       startedAt: incident.starts_at,
       completedAt: null,
       summary: "Recommended action generated from the incident severity and current incident state.",
     };
-  }, [incident]);
-
-  const [approvalState, setApprovalState] = useState<RecoveryActionStatus>("pending");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  }, [fetchedActions, incident]);
 
   useEffect(() => {
     setApprovalState(recommendedAction.status);
     setIsSubmitting(false);
+    setIsExecuting(false);
   }, [recommendedAction.status, incident?.id]);
 
   if (!incident) {
@@ -179,7 +199,7 @@ export function IncidentDetailsModal({
 
     try {
       const result = await reviewRecoveryAction({
-        incidentId: incident.id,
+        incidentId: incident!.id,
         recoveryActionId: recommendedAction.id,
         decision,
         requestedBy: "demo.admin",
@@ -187,7 +207,7 @@ export function IncidentDetailsModal({
           decision === "approve"
             ? "Approved from incident detail modal."
             : "Rejected from incident detail modal.",
-        fingerprint: incident.fingerprint,
+        fingerprint: incident!.fingerprint,
         target: recommendedAction.target,
       });
 
@@ -196,6 +216,19 @@ export function IncidentDetailsModal({
       notify(result.message);
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function handleExecute() {
+    setIsExecuting(true);
+    try {
+      await executeHeal(recommendedAction.id);
+      toast.success("Heal execution triggered.");
+      setApprovalState("running");
+    } catch {
+      toast.error("Failed to trigger heal execution.");
+    } finally {
+      setIsExecuting(false);
     }
   }
 
@@ -391,18 +424,27 @@ export function IncidentDetailsModal({
                 <div className="flex flex-wrap gap-2">
                   <button
                     onClick={() => void handleDecision("approve")}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || approvalState !== "pending"}
                     className="rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {isSubmitting ? "Submitting..." : "Approve"}
                   </button>
                   <button
                     onClick={() => void handleDecision("reject")}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || approvalState !== "pending"}
                     className="rounded-xl border border-rose-200 bg-white px-4 py-2 text-sm font-medium text-rose-600 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     Reject
                   </button>
+                  {approvalState === "approved" && (
+                    <button
+                      onClick={() => void handleExecute()}
+                      disabled={isExecuting}
+                      className="rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isExecuting ? "Executing..." : "Execute Heal"}
+                    </button>
+                  )}
                 </div>
                 <p className="text-xs font-medium text-slate-500">Current decision state: {approvalState}</p>
               </div>
