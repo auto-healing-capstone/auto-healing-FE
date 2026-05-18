@@ -3,7 +3,7 @@ import type { CollectionResponse } from "../../../shared/api/types";
 import { normalizeCollectionResponse } from "../../../shared/api/utils";
 import type { Incident } from "../types";
 
-interface BackendIncidentAlert {
+export interface BackendIncidentAlert {
   alert_name?: string | null;
   severity?: string | null;
   status?: string | null;
@@ -15,7 +15,7 @@ interface BackendIncidentAlert {
   ends_at?: string | null;
 }
 
-interface BackendIncident {
+export interface BackendIncident {
   id: number;
   target_node: string;
   status: string;
@@ -67,7 +67,7 @@ function formatIncidentType(value: string) {
     .join(" ");
 }
 
-function toFrontendIncident(incident: BackendIncident): Incident {
+export function toFrontendIncident(incident: BackendIncident): Incident {
   const sourceAlert = incident.trigger_metrics?.alerts?.[0];
   const detectedAt = incident.detected_at;
   const resolvedAt = incident.resolved_at ?? sourceAlert?.ends_at ?? null;
