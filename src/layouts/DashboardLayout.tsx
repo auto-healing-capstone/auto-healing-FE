@@ -1,14 +1,16 @@
-import { Outlet, NavLink } from "react-router";
+import { Outlet, NavLink, useSearchParams } from "react-router";
 import {
   Gauge,
   LayoutDashboard,
   BarChart3,
-  Settings, 
+  Settings,
   Clock,
   Menu,
   X,
   Activity,
-  RefreshCcw
+  RefreshCcw,
+  CalendarRange,
+  Check
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getAlertFeed } from "../entities/dashboard/api/getAlertFeed";
@@ -19,9 +21,88 @@ import { useSSE } from "../shared/api/useSSE";
 import { alertFeedMock } from "../shared/mocks/dashboard";
 import { StatusIcon } from "../shared/ui/status-badge";
 
+type TimeRange = "Last 24 Hours" | "Last 7 Days" | "Last 30 Days" | "Custom Range";
+
+function toLocalDateString(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 export function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [readAlertIds, setReadAlertIds] = useState<string[]>([]);
+  const [readAlertIds, setReadAlertIds] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("readAlertIds") ?? "[]") as string[];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem("readAlertIds", JSON.stringify(readAlertIds));
+  }, [readAlertIds]);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const today = toLocalDateString(new Date());
+
+  const [timeRange, setTimeRange] = useState<TimeRange>(() => {
+    if (searchParams.get("from") && searchParams.get("to")) return "Custom Range";
+    const r = searchParams.get("range");
+    if (r === "7d") return "Last 7 Days";
+    if (r === "30d") return "Last 30 Days";
+    if (r === "24h") return "Last 24 Hours";
+    return "Last 24 Hours";
+  });
+  const [showCustomPicker, setShowCustomPicker] = useState(false);
+  const [customStart, setCustomStart] = useState(() => searchParams.get("from") ?? today);
+  const [customEnd, setCustomEnd] = useState(() => searchParams.get("to") ?? today);
+  const [appliedRange, setAppliedRange] = useState<{ start: string; end: string } | null>(() => {
+    const from = searchParams.get("from");
+    const to = searchParams.get("to");
+    return from && to ? { start: from, end: to } : null;
+  });
+  const pickerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showCustomPicker) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setShowCustomPicker(false);
+        if (!appliedRange) setTimeRange("Last 24 Hours");
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showCustomPicker, appliedRange]);
+
+  const RANGE_PARAM: Record<string, string> = {
+    "Last 24 Hours": "24h",
+    "Last 7 Days": "7d",
+    "Last 30 Days": "30d",
+  };
+
+  function handleTimeRangeChange(value: TimeRange) {
+    setTimeRange(value);
+    if (value === "Custom Range") {
+      setShowCustomPicker(true);
+    } else {
+      setShowCustomPicker(false);
+      setAppliedRange(null);
+      setSearchParams({ range: RANGE_PARAM[value] });
+    }
+  }
+
+  function handleApplyCustomRange() {
+    setAppliedRange({ start: customStart, end: customEnd });
+    setShowCustomPicker(false);
+    setSearchParams({ from: customStart, to: customEnd });
+  }
+
+  function formatCustomLabel() {
+    if (!appliedRange) return "Custom Range";
+    return `${appliedRange.start} ~ ${appliedRange.end}`;
+  }
   const announcedIdsRef = useRef<string[]>([]);
 
   const alertsResource = usePollingResource({
@@ -37,6 +118,14 @@ export function DashboardLayout() {
     },
   });
   const alerts = alertsResource.data;
+
+  const systemStatus = useMemo(() => {
+    if (alerts.some((a) => a.severity === "critical" && a.status !== "resolved"))
+      return { label: "Critical Alerts Active", color: "bg-red-500" };
+    if (alerts.some((a) => a.severity === "warning" && a.status !== "resolved"))
+      return { label: "Degraded Performance", color: "bg-yellow-400" };
+    return { label: "All Systems Operational", color: "bg-green-500" };
+  }, [alerts]);
 
   useSSE({
     onNewIncident: () => {
@@ -198,8 +287,8 @@ export function DashboardLayout() {
         >
           <p className="text-xs text-slate-600 mb-1">System Status</p>
           <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-sm font-medium text-slate-800">All Systems Operational</span>
+            <div className={`w-2 h-2 rounded-full animate-pulse ${systemStatus.color}`} />
+            <span className="text-sm font-medium text-slate-800">{systemStatus.label}</span>
           </div>
         </div>
       </aside>
@@ -247,20 +336,71 @@ export function DashboardLayout() {
                 <p className="text-sm font-semibold text-slate-800">Live Incident Operations Board</p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="relative flex items-center gap-3" ref={pickerRef}>
               <Clock className="w-5 h-5 text-slate-600" />
-              <select className="px-3 py-2 rounded-xl border-none font-medium text-sm text-slate-700 cursor-pointer md:px-4"
+              <select
+                value={timeRange}
+                onChange={(e) => handleTimeRangeChange(e.target.value as TimeRange)}
+                className="px-3 py-2 rounded-xl border-none font-medium text-sm text-slate-700 cursor-pointer md:px-4"
                 style={{
                   background: 'rgba(255, 255, 255, 0.6)',
                   backdropFilter: 'blur(12px)',
                   WebkitBackdropFilter: 'blur(12px)'
                 }}
               >
-                <option>Last 24 Hours</option>
-                <option>Last 7 Days</option>
-                <option>Last 30 Days</option>
-                <option>Custom Range</option>
+                <option value="Last 24 Hours">Last 24 Hours</option>
+                <option value="Last 7 Days">Last 7 Days</option>
+                <option value="Last 30 Days">Last 30 Days</option>
+                <option value="Custom Range">{appliedRange ? formatCustomLabel() : "Custom Range"}</option>
               </select>
+
+              {showCustomPicker && (
+                <div
+                  className="absolute top-full left-0 mt-2 z-50 rounded-2xl p-4 shadow-xl flex flex-col gap-3 min-w-[280px]"
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.92)',
+                    backdropFilter: 'blur(20px)',
+                    WebkitBackdropFilter: 'blur(20px)',
+                    border: '1px solid rgba(255, 255, 255, 0.8)'
+                  }}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <CalendarRange className="w-4 h-4 text-blue-500" />
+                    <span className="text-sm font-semibold text-slate-700">Custom Date Range</span>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs text-slate-500 font-medium">Start Date</label>
+                    <input
+                      type="date"
+                      value={customStart}
+                      max={customEnd}
+                      onChange={(e) => setCustomStart(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl text-sm text-slate-700 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      style={{ background: 'rgba(248, 250, 252, 0.8)' }}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs text-slate-500 font-medium">End Date</label>
+                    <input
+                      type="date"
+                      value={customEnd}
+                      min={customStart}
+                      max={today}
+                      onChange={(e) => setCustomEnd(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl text-sm text-slate-700 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      style={{ background: 'rgba(248, 250, 252, 0.8)' }}
+                    />
+                  </div>
+                  <button
+                    onClick={handleApplyCustomRange}
+                    disabled={!customStart || !customEnd || customStart > customEnd}
+                    className="mt-1 flex items-center justify-center gap-2 w-full py-2 rounded-xl text-sm font-semibold text-white bg-blue-500 hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <Check className="w-4 h-4" />
+                    Apply
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router";
+import { matchesDateRange, useDateRangeFilter } from "../../shared/api/useDateRangeFilter";
 import { Activity, CalendarRange, CheckCircle2, Clock, Download, FileSpreadsheet, FileText, Filter } from "lucide-react";
 import {
   Bar,
@@ -40,7 +42,19 @@ export function ReportsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [severityFilter, setSeverityFilter] = useState("all");
-  const [rangeFilter, setRangeFilter] = useState("all");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const dateFilter = useDateRangeFilter();
+
+  const rangeFilter = useMemo(() => {
+    if (searchParams.get("from") && searchParams.get("to")) return "custom";
+    const r = searchParams.get("range");
+    return r === "24h" || r === "7d" || r === "30d" ? r : "all";
+  }, [searchParams]);
+
+  function handleRangeChange(value: string) {
+    if (value === "all") setSearchParams({});
+    else if (value === "24h" || value === "7d" || value === "30d") setSearchParams({ range: value });
+  }
   const [exportFormat, setExportFormat] = useState<"pdf" | "csv">("pdf");
   const [isExporting, setIsExporting] = useState(false);
   const [lastExportMessage, setLastExportMessage] = useState<string | null>(null);
@@ -72,17 +86,12 @@ export function ReportsPage() {
   }, []);
 
   const filteredIncidents = useMemo(() => {
-    const now = new Date("2026-03-30T23:59:59Z").getTime();
     return incidents.filter((incident) => {
       const severityMatch = severityFilter === "all" || incident.severity === severityFilter;
-      const ageHours = (now - new Date(incident.starts_at).getTime()) / (1000 * 60 * 60);
-      const rangeMatch =
-        rangeFilter === "all" ||
-        (rangeFilter === "24h" && ageHours <= 24) ||
-        (rangeFilter === "7d" && ageHours <= 24 * 7);
+      const rangeMatch = matchesDateRange(incident.starts_at, dateFilter);
       return severityMatch && rangeMatch;
     });
-  }, [incidents, rangeFilter, severityFilter]);
+  }, [incidents, dateFilter, severityFilter]);
 
   const severityData = useMemo(() => {
     const counts = new Map<string, number>();
@@ -154,11 +163,13 @@ export function ReportsPage() {
           <FilterSelect
             icon={CalendarRange}
             value={rangeFilter}
-            onChange={setRangeFilter}
+            onChange={handleRangeChange}
             options={[
               { label: "All Time", value: "all" },
               { label: "Last 24 Hours", value: "24h" },
               { label: "Last 7 Days", value: "7d" },
+              { label: "Last 30 Days", value: "30d" },
+              ...(rangeFilter === "custom" ? [{ label: "Custom range", value: "custom" }] : []),
             ]}
           />
         </div>

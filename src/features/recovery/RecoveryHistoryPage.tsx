@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router";
+import { matchesDateRange, useDateRangeFilter } from "../../shared/api/useDateRangeFilter";
 import { Clock3, PlayCircle, RefreshCcw, Search, ShieldCheck, ThumbsDown, ThumbsUp } from "lucide-react";
 import { toast } from "sonner";
 import { getRecoveryActions } from "../../entities/dashboard/api/getRecoveryActions";
@@ -46,7 +48,20 @@ export function RecoveryHistoryPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [targetFilter, setTargetFilter] = useState("all");
-  const [rangeFilter, setRangeFilter] = useState("all");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const dateFilter = useDateRangeFilter();
+
+  // URL에서 Select 표시값 파생 (단일 소스)
+  const rangeFilter = useMemo(() => {
+    if (searchParams.get("from") && searchParams.get("to")) return "custom";
+    const r = searchParams.get("range");
+    return r === "24h" || r === "7d" || r === "30d" ? r : "all";
+  }, [searchParams]);
+
+  function handleRangeChange(value: string) {
+    if (value === "all") setSearchParams({});
+    else if (value === "24h" || value === "7d" || value === "30d") setSearchParams({ range: value });
+  }
 
   useEffect(() => {
     setItems(recoveryResource.data);
@@ -55,26 +70,16 @@ export function RecoveryHistoryPage() {
   const targetOptions = useMemo(() => Array.from(new Set(items.map((item) => item.target))), [items]);
 
   const filteredItems = useMemo(() => {
-    const now = new Date("2026-03-30T23:59:59Z").getTime();
-
     return items.filter((item) => {
       const query = searchQuery.trim().toLowerCase();
       const searchable = `${item.action} ${item.incidentName} ${item.target} ${item.summary}`.toLowerCase();
       const queryMatch = query.length === 0 || searchable.includes(query);
       const statusMatch = statusFilter === "all" || item.status === statusFilter;
       const targetMatch = targetFilter === "all" || item.target === targetFilter;
-
-      const startedAt = new Date(item.startedAt).getTime();
-      const ageHours = (now - startedAt) / (1000 * 60 * 60);
-      const rangeMatch =
-        rangeFilter === "all" ||
-        (rangeFilter === "24h" && ageHours <= 24) ||
-        (rangeFilter === "7d" && ageHours <= 24 * 7) ||
-        (rangeFilter === "30d" && ageHours <= 24 * 30);
-
+      const rangeMatch = matchesDateRange(item.startedAt, dateFilter);
       return queryMatch && statusMatch && targetMatch && rangeMatch;
     });
-  }, [items, rangeFilter, searchQuery, statusFilter, targetFilter]);
+  }, [items, dateFilter, searchQuery, statusFilter, targetFilter]);
 
   const resolvedCount = filteredItems.filter((item) => item.status === "resolved").length;
   const runningCount = filteredItems.filter((item) => item.status === "running").length;
@@ -88,7 +93,7 @@ export function RecoveryHistoryPage() {
         incidentId: 0,
         recoveryActionId: item.id,
         decision,
-        requestedBy: "demo.admin",
+        requestedBy: "admin",
         reason:
           decision === "approve"
             ? "Approved from recovery history page."
@@ -124,8 +129,7 @@ export function RecoveryHistoryPage() {
       <div>
         <h2 className="text-2xl font-semibold text-slate-900">Recovery History</h2>
         <p className="mt-1 text-slate-600">
-          Recovery actions now try `GET /recovery-actions` first, then fall back to demo history
-          while the same review interface stays ready for the real backend.
+          Recovery action history fetched live from the backend. Approve or reject pending actions below.
         </p>
       </div>
 
@@ -185,7 +189,7 @@ export function RecoveryHistoryPage() {
             </SelectContent>
           </Select>
 
-          <Select value={rangeFilter} onValueChange={setRangeFilter}>
+          <Select value={rangeFilter} onValueChange={handleRangeChange}>
             <SelectTrigger className="h-10 rounded-xl border-white/70 bg-white/70">
               <SelectValue placeholder="Range" />
             </SelectTrigger>
@@ -194,6 +198,9 @@ export function RecoveryHistoryPage() {
               <SelectItem value="24h">Last 24 hours</SelectItem>
               <SelectItem value="7d">Last 7 days</SelectItem>
               <SelectItem value="30d">Last 30 days</SelectItem>
+              {rangeFilter === "custom" && (
+                <SelectItem value="custom">Custom range</SelectItem>
+              )}
             </SelectContent>
           </Select>
         </div>
@@ -208,7 +215,7 @@ export function RecoveryHistoryPage() {
               setSearchQuery("");
               setStatusFilter("all");
               setTargetFilter("all");
-              setRangeFilter("all");
+              handleRangeChange("all");
             }}
             className="rounded-full border border-slate-200 bg-white px-3 py-1 font-medium text-slate-700"
           >
