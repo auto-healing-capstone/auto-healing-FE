@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const API_PREFIX = "/api/v1";
-const DEFAULT_API_BASE_URL = `http://localhost:8000${API_PREFIX}`;
+const DEFAULT_API_BASE_URL = `http://34.158.201.96:8000${API_PREFIX}`;
 
 const normalizeApiBaseUrl = (baseUrl: string) => {
   const trimmedBaseUrl = baseUrl.replace(/\/+$/, "");
