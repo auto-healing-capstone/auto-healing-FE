@@ -15,6 +15,7 @@ import { getAlertFeed } from "../entities/dashboard/api/getAlertFeed";
 import { toast } from "sonner";
 import { NotificationCenter } from "../features/notifications/NotificationCenter";
 import { usePollingResource } from "../shared/api/usePollingResource";
+import { useSSE } from "../shared/api/useSSE";
 import { alertFeedMock } from "../shared/mocks/dashboard";
 import { StatusIcon } from "../shared/ui/status-badge";
 
@@ -36,6 +37,18 @@ export function DashboardLayout() {
     },
   });
   const alerts = alertsResource.data;
+
+  useSSE({
+    onNewIncident: () => {
+      void alertsResource.refresh();
+    },
+    onStatusChanged: () => {
+      void alertsResource.refresh();
+    },
+    onRecoveryCompleted: () => {
+      void alertsResource.refresh();
+    },
+  });
 
   const primaryNavItems = [
     { to: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -174,22 +187,6 @@ export function DashboardLayout() {
             </div>
           </div>
         </nav>
-
-        <div className="absolute right-4 bottom-[9.5rem] left-4 rounded-xl p-4"
-          style={{
-            background: 'rgba(255, 255, 255, 0.58)',
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
-            border: '1px solid rgba(255, 255, 255, 0.7)'
-          }}
-        >
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Presentation Path</p>
-          <div className="mt-3 space-y-2 text-sm text-slate-700">
-            <p>1. Dashboard for live overview and alerts</p>
-            <p>2. Incidents for diagnosis and approval</p>
-            <p>3. Recovery for action outcome tracking</p>
-          </div>
-        </div>
 
         <div className="absolute bottom-6 left-4 right-4 p-4 rounded-xl"
           style={{
