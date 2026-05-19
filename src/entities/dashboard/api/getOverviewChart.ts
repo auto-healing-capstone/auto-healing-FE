@@ -1,12 +1,11 @@
 import { apiClient } from "../../../shared/api/client";
 import type { ChartPoint } from "../types";
 
-// /predictions 응답 항목 — metric_type별로 여러 레코드가 옴
 interface BackendPrediction {
   id?: number;
-  metric_type?: string;    // "cpu" | "memory" | "request_count"
+  metric_type?: string;
   target_node?: string;
-  predicted_value?: number;
+  peak_yhat?: number;
   predicted_at?: string;
   created_at?: string;
 }
@@ -15,8 +14,21 @@ type BackendPredictionsResponse =
   | BackendPrediction[]
   | { items: BackendPrediction[] };
 
+// 백엔드 metric_type → ChartPoint 필드 매핑
+// MEMORY_LEAK은 memory 계열, FD_RATIO는 disk 계열로 취급
+const METRIC_FIELD_MAP: Record<string, keyof Omit<ChartPoint, "time">> = {
+  CPU: "cpu",
+  cpu: "cpu",
+  MEMORY: "memory",
+  memory: "memory",
+  MEMORY_LEAK: "memory",
+  DISK: "disk",
+  disk: "disk",
+  FD_RATIO: "disk",
+};
+
 function toChartPoints(predictions: BackendPrediction[]): ChartPoint[] {
-  const byTime = new Map<string, { time: string; cpu: number; memory: number; disk: number }>();
+  const byTime = new Map<string, ChartPoint>();
 
   for (const p of predictions) {
     const raw = p.predicted_at ?? p.created_at;
@@ -27,21 +39,19 @@ function toChartPoints(predictions: BackendPrediction[]): ChartPoint[] {
       minute: "2-digit",
     });
 
+    const field = p.metric_type ? METRIC_FIELD_MAP[p.metric_type] : undefined;
+    if (!field) continue;
+
     const entry = byTime.get(label) ?? { time: label, cpu: 0, memory: 0, disk: 0 };
-    const value = p.predicted_value ?? 0;
-
-    if (p.metric_type === "cpu") entry.cpu = value;
-    else if (p.metric_type === "memory") entry.memory = value;
-
+    entry[field] = p.peak_yhat ?? 0;
     byTime.set(label, entry);
   }
 
-  // 시간 순 정렬 후 최근 24개 포인트만 반환
   return Array.from(byTime.values()).slice(-24);
 }
 
 export async function getOverviewChart(): Promise<ChartPoint[]> {
-  const response = await apiClient.get<BackendPredictionsResponse>("/predictions");
+  const response = await apiClient.get<BackendPredictionsResponse>("/predictions?page_size=100");
   const data = response.data;
 
   const items = Array.isArray(data)

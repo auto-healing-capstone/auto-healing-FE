@@ -37,6 +37,13 @@ export const router = createBrowserRouter([
         },
       },
       {
+        path: "predictions",
+        lazy: async () => {
+          const module = await import("../features/predictions/PredictionsPage");
+          return { Component: module.PredictionsPage };
+        },
+      },
+      {
         path: "settings",
         lazy: async () => {
           const module = await import("../features/settings/SettingsPage");

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { matchesDateRange, useDateRangeFilter } from "../../shared/api/useDateRangeFilter";
 import { AlertCircle, CheckCircle2, ServerCrash } from "lucide-react";
 import { getMetricCards } from "../../entities/dashboard/api/getMetricCards";
+import { getOverviewChart } from "../../entities/dashboard/api/getOverviewChart";
 import { getIncidentFlowStage } from "../../entities/incident/status";
 import { getIncidents } from "../../entities/incident/api/getIncidents";
 import type { Incident } from "../../entities/incident/types";
@@ -10,6 +11,7 @@ import { useMetricHistory } from "../../shared/api/useMetricHistory";
 import { IncidentTable } from "./components/IncidentTable";
 import { MetricCard } from "./components/MetricCard";
 import { OverviewChart } from "./components/OverviewChart";
+import { PredictionChart } from "./components/PredictionChart";
 import { IncidentDetailsModal } from "../incidents/components/IncidentDetailsModal";
 import {
   fallbackIncidentMock,
@@ -44,6 +46,17 @@ export function OverviewPage() {
   });
 
   const { history: liveChartData, isFallback: chartIsFallback } = useMetricHistory();
+
+  const predictionChartResource = usePollingResource({
+    cacheKey: "overview-prediction-chart",
+    fallbackData: [],
+    fallbackErrorMessage: "Prediction chart data unavailable.",
+    queryFn: async () => ({
+      data: await getOverviewChart(),
+    }),
+  });
+
+  const predictionChartData = predictionChartResource.data;
 
   const dateFilter = useDateRangeFilter();
 
@@ -121,6 +134,10 @@ export function OverviewPage() {
           </div>
         </div>
       </div>
+
+      {predictionChartData.length > 0 && (
+        <PredictionChart data={predictionChartData} />
+      )}
 
       <IncidentTable
         incidents={incidentSummary.incidents}
