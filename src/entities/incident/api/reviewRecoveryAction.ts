@@ -1,52 +1,67 @@
 import { apiClient } from "../../../shared/api/client";
 import type {
   RecoveryActionDecision,
+  RecoveryActionStatus,
   ReviewRecoveryActionPayload,
   ReviewRecoveryActionResult,
 } from "../types";
 
-function delay(ms: number) {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
+// 백엔드 RecoveryActionRead 응답 구조
+interface RecoveryActionRead {
+  id: number;
+  incident_id: number | null;
+  action_type: string;
+  approval_status: string;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
 }
 
-function toNextStatus(decision: RecoveryActionDecision) {
+function toNextStatus(status: string, decision: RecoveryActionDecision): RecoveryActionStatus {
+  if (status === "APPROVED") return "approved";
+  if (status === "REJECTED") return "rejected";
   return decision === "approve" ? "approved" : "rejected";
 }
 
 export async function reviewRecoveryAction(
   payload: ReviewRecoveryActionPayload,
 ): Promise<ReviewRecoveryActionResult> {
-  // approve / reject 엔드포인트가 분리되어 있음
-  const endpoint =
-    payload.decision === "approve"
-      ? `/recovery-actions/${payload.recoveryActionId}/approve`
-      : `/recovery-actions/${payload.recoveryActionId}/reject`;
+  const isApprove = payload.decision === "approve";
+  const endpoint = isApprove
+    ? `/recovery-actions/${payload.recoveryActionId}/approve`
+    : `/recovery-actions/${payload.recoveryActionId}/reject`;
+
+  // 백엔드 필드명: approve → reviewed_by, reject → rejected_by
+  const body = isApprove
+    ? { reviewed_by: payload.requestedBy, reason: payload.reason }
+    : { rejected_by: payload.requestedBy, reason: payload.reason };
 
   try {
-    const response = await apiClient.post<ReviewRecoveryActionResult>(endpoint, {
-      reason: payload.reason,
-      requested_by: payload.requestedBy,
-    });
+    const response = await apiClient.post<RecoveryActionRead>(endpoint, body);
+    const action = response.data;
 
-    return response.data;
+    return {
+      incidentId: payload.incidentId,
+      recoveryActionId: String(action.id),
+      decision: payload.decision,
+      nextStatus: toNextStatus(action.approval_status, payload.decision),
+      reviewedAt: action.reviewed_at ?? new Date().toISOString(),
+      reviewedBy: action.reviewed_by ?? payload.requestedBy,
+      message: isApprove
+        ? `Recovery action approved for ${payload.target ?? "selected target"}.`
+        : `Recovery action rejected for ${payload.target ?? "selected target"}.`,
+    };
   } catch {
-    // 백엔드 연결 전까지 데모 플로우 유지
-    await delay(450);
-
-    const reviewedAt = new Date().toISOString();
-    const nextStatus = toNextStatus(payload.decision);
-
+    // 백엔드 미응답 시 데모 플로우 유지용 폴백
     return {
       incidentId: payload.incidentId,
       recoveryActionId: payload.recoveryActionId,
       decision: payload.decision,
-      nextStatus,
-      reviewedAt,
+      nextStatus: isApprove ? "approved" : "rejected",
+      reviewedAt: new Date().toISOString(),
       reviewedBy: payload.requestedBy,
-      message:
-        payload.decision === "approve"
-          ? `Recovery action approved for ${payload.target ?? "selected target"}.`
-          : `Recovery action rejected for ${payload.target ?? "selected target"}.`,
+      message: isApprove
+        ? `Recovery action approved for ${payload.target ?? "selected target"}.`
+        : `Recovery action rejected for ${payload.target ?? "selected target"}.`,
     };
   }
 }

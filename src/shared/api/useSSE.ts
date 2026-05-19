@@ -12,10 +12,28 @@ const SSE_URL = (() => {
 
 const RETRY_DELAY_MS = 5000;
 
+export interface SSENewIncidentData {
+  incident_id: number;
+  ai_title: string | null;
+  ai_severity: string | null;
+  status: string;
+}
+
+export interface SSEStatusChangedData {
+  incident_id: number;
+  status: string;
+}
+
+export interface SSERecoveryCompletedData {
+  incident_id: number;
+  is_successful: boolean;
+  action_type: string;
+}
+
 export interface SSEHandlers {
-  onNewIncident?: (data: unknown) => void;
-  onStatusChanged?: (data: unknown) => void;
-  onRecoveryCompleted?: (data: unknown) => void;
+  onNewIncident?: (data: SSENewIncidentData) => void;
+  onStatusChanged?: (data: SSEStatusChangedData) => void;
+  onRecoveryCompleted?: (data: SSERecoveryCompletedData) => void;
 }
 
 export function useSSE(handlers: SSEHandlers) {
@@ -35,25 +53,25 @@ export function useSSE(handlers: SSEHandlers) {
 
       es.addEventListener("new_incident", (event: MessageEvent) => {
         try {
-          handlersRef.current.onNewIncident?.(JSON.parse(event.data as string));
+          handlersRef.current.onNewIncident?.(JSON.parse(event.data as string) as SSENewIncidentData);
         } catch {
-          handlersRef.current.onNewIncident?.(event.data);
+          /* malformed event — skip */
         }
       });
 
       es.addEventListener("status_changed", (event: MessageEvent) => {
         try {
-          handlersRef.current.onStatusChanged?.(JSON.parse(event.data as string));
+          handlersRef.current.onStatusChanged?.(JSON.parse(event.data as string) as SSEStatusChangedData);
         } catch {
-          handlersRef.current.onStatusChanged?.(event.data);
+          /* malformed event — skip */
         }
       });
 
       es.addEventListener("recovery_completed", (event: MessageEvent) => {
         try {
-          handlersRef.current.onRecoveryCompleted?.(JSON.parse(event.data as string));
+          handlersRef.current.onRecoveryCompleted?.(JSON.parse(event.data as string) as SSERecoveryCompletedData);
         } catch {
-          handlersRef.current.onRecoveryCompleted?.(event.data);
+          /* malformed event — skip */
         }
       });
 
