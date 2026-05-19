@@ -79,14 +79,10 @@ function getStoryEvents(incident: Incident, approvalState: RecoveryActionStatus)
     {
       title: "Incident detected",
       timestamp: formatDateTime(incident.starts_at),
-      description: incident.summary ?? "Alert threshold crossed and the incident entered the dashboard flow.",
     },
     {
       title: "Analysis prepared",
       timestamp: formatDateTime(updatedAt),
-      description:
-        incident.description ??
-        "Diagnostic context and recommended operator-facing explanation are ready for review.",
     },
     {
       title:
@@ -98,12 +94,6 @@ function getStoryEvents(incident: Incident, approvalState: RecoveryActionStatus)
               ? "Approval requested"
               : "Recovery staged",
       timestamp: formatDateTime(updatedAt),
-      description:
-        approvalState === "approved"
-          ? "Operator approval has been recorded and the action is ready to transition into execution."
-          : approvalState === "rejected"
-            ? "Operator rejected the suggested action and the incident remains available for manual follow-up."
-            : "The recovery recommendation is visible to the operator and waiting for the next decision.",
     },
     {
       title:
@@ -115,14 +105,6 @@ function getStoryEvents(incident: Incident, approvalState: RecoveryActionStatus)
               ? "Recovery failed"
               : "Resolution pending",
       timestamp: formatDateTime(incident.ends_at ?? updatedAt),
-      description:
-        flowStage === "resolved"
-          ? "Service health returned to an acceptable range and the incident can be presented as resolved."
-          : flowStage === "recovering"
-            ? "The UI is holding space for live execution updates once the backend recovery stream is connected."
-            : flowStage === "failed"
-              ? "The current flow indicates manual intervention is still required."
-              : "This final stage remains open until backend recovery execution updates are available.",
     },
   ];
 }
@@ -234,23 +216,23 @@ export function IncidentDetailsModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-4xl">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[88vh] flex-col sm:max-w-5xl bg-sky-50/95 backdrop-blur-none">
+        <DialogHeader className="shrink-0">
           <DialogTitle>{incident.alert_name}</DialogTitle>
           <DialogDescription>
             {incident.instance ?? "Unknown target"} · {formatDateTime(incident.starts_at)}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-6 lg:grid-cols-[1.3fr_0.9fr]">
-          <div className="space-y-6">
+        <div className="grid min-h-0 flex-1 gap-6 overflow-hidden lg:grid-cols-[1.3fr_0.9fr]">
+          <div className="space-y-4 overflow-y-auto pr-1">
             <section className="rounded-xl border border-slate-200/70 bg-white/60 p-4">
               <div className="mb-3 flex flex-wrap gap-2">
                 <StatusBadge value={incident.severity} variant="severity" />
                 <StatusBadge value={incident.status} variant="status" />
               </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <Meta label="Fingerprint" value={incident.fingerprint ?? "--"} />
+              <div className="grid gap-3 md:grid-cols-2">
+                {incident.fingerprint && <Meta label="Fingerprint" value={incident.fingerprint} />}
                 <Meta label="Instance" value={incident.instance ?? "--"} />
                 <Meta label="Started At" value={formatDateTime(incident.starts_at)} />
                 <Meta label="Ended At" value={formatDateTime(incident.ends_at)} />
@@ -386,7 +368,7 @@ export function IncidentDetailsModal({
             </Tabs>
           </div>
 
-          <div className="space-y-6">
+          <div className="space-y-4 overflow-y-auto pl-1">
             <section className="rounded-xl border border-slate-200/70 bg-white/60 p-4">
               <h4 className="mb-3 font-semibold text-slate-900">Incident Timeline</h4>
               <IncidentTimeline status={incident.status} />
@@ -394,14 +376,11 @@ export function IncidentDetailsModal({
 
             <section className="rounded-xl border border-slate-200/70 bg-white/60 p-4">
               <h4 className="mb-3 font-semibold text-slate-900">Story Flow</h4>
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {storyEvents.map((event) => (
-                  <div key={event.title} className="rounded-xl border border-white/70 bg-white/80 p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold text-slate-900">{event.title}</p>
-                      <span className="text-xs text-slate-500">{event.timestamp}</span>
-                    </div>
-                    <p className="mt-2 text-sm leading-6 text-slate-600">{event.description}</p>
+                  <div key={event.title} className="flex items-center justify-between gap-3 rounded-lg border border-white/70 bg-white/80 px-3 py-2">
+                    <p className="text-sm font-medium text-slate-900">{event.title}</p>
+                    <span className="shrink-0 text-xs text-slate-500">{event.timestamp}</span>
                   </div>
                 ))}
               </div>
@@ -414,32 +393,33 @@ export function IncidentDetailsModal({
                 <p className="text-sm text-slate-600">Target: {recommendedAction.target}</p>
                 <p className="text-sm text-slate-600">{recommendedAction.summary}</p>
                 <StatusBadge value={approvalState} variant="status" />
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => void handleDecision("approve")}
-                    disabled={isSubmitting || approvalState !== "pending"}
-                    className="rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {isSubmitting ? "Submitting..." : "Approve"}
-                  </button>
-                  <button
-                    onClick={() => void handleDecision("reject")}
-                    disabled={isSubmitting || approvalState !== "pending"}
-                    className="rounded-xl border border-rose-200 bg-white px-4 py-2 text-sm font-medium text-rose-600 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    Reject
-                  </button>
-                  {approvalState === "approved" && (
+                {approvalState === "pending" && (
+                  <div className="flex flex-wrap gap-2">
                     <button
-                      onClick={() => void handleExecute()}
-                      disabled={isExecuting}
-                      className="rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
+                      onClick={() => void handleDecision("approve")}
+                      disabled={isSubmitting}
+                      className="rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {isExecuting ? "Executing..." : "Execute Heal"}
+                      {isSubmitting ? "Submitting..." : "Approve"}
                     </button>
-                  )}
-                </div>
-                <p className="text-xs font-medium text-slate-500">Current decision state: {approvalState}</p>
+                    <button
+                      onClick={() => void handleDecision("reject")}
+                      disabled={isSubmitting}
+                      className="rounded-xl border border-rose-200 bg-white px-4 py-2 text-sm font-medium text-rose-600 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                )}
+                {approvalState === "approved" && (
+                  <button
+                    onClick={() => void handleExecute()}
+                    disabled={isExecuting}
+                    className="rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isExecuting ? "Executing..." : "Execute Heal"}
+                  </button>
+                )}
               </div>
             </section>
           </div>
