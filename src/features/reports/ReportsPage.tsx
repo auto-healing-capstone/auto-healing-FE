@@ -123,20 +123,55 @@ export function ReportsPage() {
     [filteredIncidents],
   );
 
-  async function handleExport(format: "pdf" | "csv") {
+  function handleExport(format: "pdf" | "csv") {
     setExportFormat(format);
     setIsExporting(true);
     setLastExportMessage(null);
 
-    await new Promise((resolve) => window.setTimeout(resolve, 800));
-
-    const message =
-      format === "pdf"
-        ? `PDF export queued with ${filteredIncidents.length} filtered incidents and summary charts.`
-        : `CSV export queued with ${filteredIncidents.length} filtered incidents and status breakdown rows.`;
-
-    setIsExporting(false);
-    setLastExportMessage(message);
+    if (format === "csv") {
+      const headers = ["ID", "Alert Name", "Severity", "Status", "Instance", "Summary", "Starts At", "Ends At"];
+      const csvRows = filteredIncidents.map((inc) =>
+        [inc.id, inc.alert_name, inc.severity, inc.status, inc.instance ?? "", inc.summary ?? "", inc.starts_at ?? "", inc.ends_at ?? ""]
+          .map((cell) => `"${String(cell).replace(/"/g, '""')}"`)
+          .join(","),
+      );
+      const csvContent = [headers.map((h) => `"${h}"`).join(","), ...csvRows].join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `incidents_${rangeFilter}_${severityFilter}_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      setIsExporting(false);
+      setLastExportMessage(`CSV downloaded — ${filteredIncidents.length} incidents.`);
+    } else {
+      const esc = (v: unknown) => String(v ?? "--").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const tableRows = filteredIncidents
+        .map(
+          (inc) =>
+            `<tr><td>${esc(inc.id)}</td><td>${esc(inc.alert_name)}</td><td>${esc(inc.severity)}</td><td>${esc(inc.status)}</td><td>${esc(inc.instance)}</td><td>${esc(inc.summary)}</td><td>${esc(inc.starts_at)}</td></tr>`,
+        )
+        .join("");
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Incident Report</title>
+<style>body{font-family:sans-serif;padding:24px}h1{font-size:18px;margin-bottom:4px}p.meta{font-size:12px;color:#666;margin:0 0 16px}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#f1f5f9;text-align:left;padding:8px 12px;border-bottom:2px solid #e2e8f0}td{padding:6px 12px;border-bottom:1px solid #e2e8f0}</style>
+</head><body>
+<h1>Incident Report</h1>
+<p class="meta">Range: ${esc(rangeFilter)} &bull; Severity: ${esc(severityFilter)} &bull; Total: ${filteredIncidents.length} &bull; Generated: ${new Date().toLocaleString()}</p>
+<table><thead><tr><th>ID</th><th>Alert Name</th><th>Severity</th><th>Status</th><th>Instance</th><th>Summary</th><th>Starts At</th></tr></thead>
+<tbody>${tableRows}</tbody></table>
+<script>window.onload=function(){window.print();}<\/script>
+</body></html>`;
+      const printWindow = window.open("", "_blank");
+      if (printWindow) {
+        printWindow.document.write(html);
+        printWindow.document.close();
+      }
+      setIsExporting(false);
+      setLastExportMessage(`PDF print dialog opened — ${filteredIncidents.length} incidents.`);
+    }
   }
 
   return (
@@ -181,7 +216,7 @@ export function ReportsPage() {
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div>
             <p className="text-sm text-slate-600">
-              Mock export flow for presentation. Backend download endpoints can replace this without changing the controls.
+              Download filtered incidents as CSV or open a print-ready PDF. Filters above are applied to the export.
             </p>
             <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
               <span className="rounded-full border border-slate-200 bg-white/70 px-3 py-1">
