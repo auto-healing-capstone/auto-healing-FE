@@ -1,6 +1,7 @@
 import { AlertCircle, Bell, CheckCircle2, Cpu, Globe, RotateCcw, Save, Shield, User } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { applyBaseUrl } from "../../shared/api/client";
 import { Alert, AlertDescription, AlertTitle } from "../../shared/ui/alert";
 import { Button } from "../../shared/ui/button";
 
@@ -29,7 +30,9 @@ type SettingsFormState = {
   };
 };
 
-const initialState: SettingsFormState = {
+const STORAGE_KEY = "aiops_settings";
+
+const defaultState: SettingsFormState = {
   profile: {
     name: "John Doe",
     email: "john.doe@company.com",
@@ -53,6 +56,18 @@ const initialState: SettingsFormState = {
     webhookChannel: "#aiops-alerts",
   },
 };
+
+function loadSavedSettings(): SettingsFormState {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return defaultState;
+    return { ...defaultState, ...(JSON.parse(raw) as Partial<SettingsFormState>) };
+  } catch {
+    return defaultState;
+  }
+}
+
+const initialState = loadSavedSettings();
 
 export function SettingsPage() {
   const [formState, setFormState] = useState<SettingsFormState>(initialState);
@@ -90,7 +105,7 @@ export function SettingsPage() {
   const hasErrors = Object.keys(validationErrors).length > 0;
   const isDirty = JSON.stringify(formState) !== JSON.stringify(savedState);
 
-  async function handleSave() {
+  function handleSave() {
     if (hasErrors) {
       toast.error("Please fix validation errors before saving.");
       return;
@@ -99,12 +114,27 @@ export function SettingsPage() {
     setIsSaving(true);
     setSaveMessage(null);
 
-    await new Promise((resolve) => window.setTimeout(resolve, 700));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(formState));
+    } catch {
+      toast.error("Failed to save settings.");
+      setIsSaving(false);
+      return;
+    }
 
+    const urlChanged = formState.integrations.backendBaseUrl !== savedState.integrations.backendBaseUrl;
+    if (urlChanged) applyBaseUrl(formState.integrations.backendBaseUrl);
+    window.dispatchEvent(new CustomEvent("aiops_settings_changed"));
     setSavedState(formState);
     setIsSaving(false);
-    setSaveMessage("Settings saved successfully.");
-    toast.success("Settings saved.");
+
+    if (urlChanged) {
+      setSaveMessage("Settings saved. Backend URL applied immediately.");
+      toast.success("Settings saved. Backend URL updated.");
+    } else {
+      setSaveMessage("Settings saved successfully.");
+      toast.success("Settings saved.");
+    }
   }
 
   function handleReset() {

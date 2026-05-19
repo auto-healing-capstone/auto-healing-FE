@@ -10,7 +10,8 @@ import {
   Activity,
   RefreshCcw,
   CalendarRange,
-  Check
+  Check,
+  TrendingUp,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getAlertFeed } from "../entities/dashboard/api/getAlertFeed";
@@ -30,8 +31,29 @@ function toLocalDateString(date: Date) {
   return `${y}-${m}-${d}`;
 }
 
+function loadProfileFromStorage() {
+  try {
+    const raw = localStorage.getItem("aiops_settings");
+    if (raw) {
+      const parsed = JSON.parse(raw) as { profile?: { name?: string; role?: string } };
+      return {
+        name: parsed.profile?.name ?? "John Doe",
+        role: parsed.profile?.role ?? "Admin",
+      };
+    }
+  } catch { /* ignore */ }
+  return { name: "John Doe", role: "Admin" };
+}
+
 export function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [profile, setProfile] = useState(loadProfileFromStorage);
+
+  useEffect(() => {
+    function onSettingsChanged() { setProfile(loadProfileFromStorage()); }
+    window.addEventListener("aiops_settings_changed", onSettingsChanged);
+    return () => window.removeEventListener("aiops_settings_changed", onSettingsChanged);
+  }, []);
   const [readAlertIds, setReadAlertIds] = useState<string[]>(() => {
     try {
       return JSON.parse(localStorage.getItem("readAlertIds") ?? "[]") as string[];
@@ -143,6 +165,7 @@ export function DashboardLayout() {
     { to: "/", label: "Dashboard", icon: LayoutDashboard },
     { to: "/analytics", label: "Incidents", icon: Activity },
     { to: "/recovery", label: "Recovery", icon: RefreshCcw },
+    { to: "/predictions", label: "Predictions", icon: TrendingUp },
   ];
 
   const secondaryNavItems = [
@@ -439,11 +462,11 @@ export function DashboardLayout() {
               }}
             >
               <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-semibold shadow-lg">
-                JD
+                {profile.name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()}
               </div>
               <div className="hidden md:block">
-                <p className="text-sm font-semibold text-slate-800">John Doe</p>
-                <p className="text-xs text-slate-600">Admin</p>
+                <p className="text-sm font-semibold text-slate-800">{profile.name}</p>
+                <p className="text-xs text-slate-600">{profile.role}</p>
               </div>
             </div>
           </div>
