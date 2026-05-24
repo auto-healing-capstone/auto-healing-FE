@@ -97,7 +97,14 @@ export function IncidentDetailsModal({
 
   const recommendedAction = useMemo((): RecoveryHistoryItem => {
     // 백엔드에서 받아온 실제 action이 있으면 첫 번째 사용
-    if (fetchedActions.length > 0) return fetchedActions[0];
+    if (fetchedActions.length > 0) {
+      const action = fetchedActions[0];
+      const incidentTarget = incident?.instance ?? "unknown target";
+      return {
+        ...action,
+        target: !action.target || action.target === "unknown" ? incidentTarget : action.target,
+      };
+    }
 
     // fallback: incident 데이터로 생성
     if (!incident) {
