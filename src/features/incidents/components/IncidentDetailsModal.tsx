@@ -31,45 +31,6 @@ function formatDateTime(value: string | null) {
   }).format(new Date(value));
 }
 
-function getMetricSnapshots(incident: Incident) {
-  const isCritical = incident.severity === "critical";
-
-  return [
-    {
-      label: "CPU",
-      value: isCritical ? "92%" : "78%",
-      change: isCritical ? "+18%" : "+7%",
-      tone: "text-rose-600",
-    },
-    {
-      label: "Memory",
-      value: incident.alert_name === "MemoryPressure" ? "88%" : "71%",
-      change: incident.alert_name === "MemoryPressure" ? "+14%" : "+4%",
-      tone: "text-amber-600",
-    },
-    {
-      label: "Disk I/O",
-      value: incident.alert_name === "DiskFull" ? "81%" : "56%",
-      change: incident.alert_name === "DiskFull" ? "+11%" : "-2%",
-      tone: "text-blue-600",
-    },
-  ];
-}
-
-function PreviewNotice({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/80 px-4 py-3">
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{title}</p>
-      <p className="mt-1 text-sm leading-6 text-slate-600">{description}</p>
-    </div>
-  );
-}
 
 function getStoryEvents(incident: Incident, approvalState: RecoveryActionStatus) {
   const flowStage = getIncidentFlowStage(incident.status);
@@ -173,7 +134,6 @@ export function IncidentDetailsModal({
     return null;
   }
 
-  const metricSnapshots = getMetricSnapshots(incident);
   const storyEvents = getStoryEvents(incident, approvalState);
 
   async function handleDecision(decision: "approve" | "reject") {
@@ -244,12 +204,6 @@ export function IncidentDetailsModal({
                 <TabsTrigger value="summary" className="flex-none px-3 py-2">
                   Summary
                 </TabsTrigger>
-                <TabsTrigger value="logs" className="flex-none px-3 py-2">
-                  Logs
-                </TabsTrigger>
-                <TabsTrigger value="metrics" className="flex-none px-3 py-2">
-                  Metrics
-                </TabsTrigger>
                 <TabsTrigger value="analysis" className="flex-none px-3 py-2">
                   AI Analysis
                 </TabsTrigger>
@@ -280,66 +234,16 @@ export function IncidentDetailsModal({
                 </section>
               </TabsContent>
 
-              <TabsContent value="logs" className="mt-4">
-                <section className="space-y-4">
-                  <h4 className="mb-3 font-semibold text-slate-900">Raw Logs</h4>
-                  <PreviewNotice
-                    title="Frontend Preview"
-                    description="This tab currently formats incident summary fields into a readable log preview until the backend incident detail API provides raw log lines."
-                  />
-                  <div className="rounded-lg bg-slate-950 p-4 font-mono text-xs leading-6 text-slate-200">
-                    <p>[INFO] Alert received for {incident.alert_name}</p>
-                    <p>[WARN] Instance: {incident.instance ?? "unknown"}</p>
-                    <p>[INFO] Summary: {incident.summary ?? "n/a"}</p>
-                    <p>[INFO] Fingerprint: {incident.fingerprint ?? "n/a"}</p>
-                    <p>[ERROR] {incident.description ?? "Detailed log snippet not available yet."}</p>
-                  </div>
-                </section>
-              </TabsContent>
-
-              <TabsContent value="metrics" className="mt-4">
-                <section className="space-y-4">
-                  <div>
-                    <h4 className="font-semibold text-slate-900">Metric Snapshot</h4>
-                    <p className="mt-1 text-sm text-slate-600">
-                      Key metrics at the time this incident was detected.
-                    </p>
-                  </div>
-                  <div className="grid gap-4 md:grid-cols-3">
-                    {metricSnapshots.map((metric) => (
-                      <div key={metric.label} className="rounded-xl border border-slate-200/70 bg-white/80 p-4">
-                        <p className="text-xs uppercase tracking-wide text-slate-500">{metric.label}</p>
-                        <p className={`mt-3 text-3xl font-semibold ${metric.tone}`}>{metric.value}</p>
-                        <p className="mt-2 text-sm text-slate-500">Change: {metric.change}</p>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              </TabsContent>
-
               <TabsContent value="analysis" className="mt-4">
                 <section className="space-y-4">
-                  <div>
-                    <h4 className="font-semibold text-slate-900">AI Analysis</h4>
-                    <p className="mt-2 text-sm leading-6 text-slate-600">
-                      Potential cause: resource contention detected around{" "}
-                      <span className="font-medium text-slate-900">{incident.instance ?? "this target"}</span>.
-                    </p>
-                  </div>
-                  <PreviewNotice
-                    title="Frontend Preview"
-                    description="AI findings shown here are narrative placeholders so the diagnostic UI can be reviewed before backend LLM analysis responses are connected."
-                  />
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <InfoCard label="Confidence" value="87%" />
-                    <InfoCard label="Priority" value={incident.severity === "critical" ? "Immediate" : "Monitor"} />
-                  </div>
-                  <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-4">
-                    <p className="text-sm font-semibold text-slate-900">Recommended next step</p>
-                    <p className="mt-2 text-sm leading-6 text-slate-600">
-                      Review service health, validate recent deploy changes, and approve automated recovery if alerts persist.
-                    </p>
-                  </div>
+                  <h4 className="font-semibold text-slate-900">AI Analysis</h4>
+                  {incident.description ? (
+                    <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-4">
+                      <p className="text-sm leading-6 text-slate-600">{incident.description}</p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-500">AI analysis is not available for this incident.</p>
+                  )}
                 </section>
               </TabsContent>
 
@@ -349,10 +253,6 @@ export function IncidentDetailsModal({
                     <h4 className="font-semibold text-slate-900">Recovery Plan</h4>
                     <p className="mt-2 text-sm leading-6 text-slate-600">{recommendedAction.summary}</p>
                   </div>
-                  <PreviewNotice
-                    title="Frontend Preview"
-                    description="Recovery action details are currently inferred from incident severity and status so the operator approval UX can be tested before full backend action history is attached."
-                  />
                   <div className="grid gap-4 md:grid-cols-2">
                     <InfoCard label="Action" value={recommendedAction.action} />
                     <InfoCard label="Target" value={recommendedAction.target} />
