@@ -234,6 +234,10 @@ export function IncidentsPage() {
             setSelectedIncident(null);
           }
         }}
+        onIncidentUpdated={(updated) => {
+          setIncidents((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+          setSelectedIncident(updated);
+        }}
       />
     </div>
   );

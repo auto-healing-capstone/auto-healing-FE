@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { executeHeal } from "../../../entities/incident/api/executeHeal";
+import { getIncidentById } from "../../../entities/incident/api/getIncidentById";
 import { getIncidentRecoveryActions } from "../../../entities/incident/api/getIncidentRecoveryActions";
 import { reviewRecoveryAction } from "../../../entities/incident/api/reviewRecoveryAction";
 import type { Incident, RecoveryActionStatus } from "../../../entities/incident/types";
@@ -74,15 +75,18 @@ export function IncidentDetailsModal({
   incident,
   open,
   onOpenChange,
+  onIncidentUpdated,
 }: {
   incident: Incident | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onIncidentUpdated?: (updated: Incident) => void;
 }) {
   const [fetchedActions, setFetchedActions] = useState<RecoveryHistoryItem[]>([]);
   const [approvalState, setApprovalState] = useState<RecoveryActionStatus>("pending");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // 모달이 열릴 때 해당 incident의 실제 recovery actions 조회
   useEffect(() => {
@@ -124,7 +128,7 @@ export function IncidentDetailsModal({
       incidentName: incident.alert_name,
       action: incident.alert_name === "MemoryPressure" ? "Increase cache limit" : "Restart affected service",
       target: incident.instance ?? "unknown target",
-      status: (incident.status === "pending" ? "pending" : "approved") as RecoveryActionStatus,
+      status: "pending" as RecoveryActionStatus,
       startedAt: incident.starts_at,
       completedAt: null,
       summary: "Recommended action generated from the incident severity and current incident state.",
@@ -137,11 +141,35 @@ export function IncidentDetailsModal({
     setIsExecuting(false);
   }, [recommendedAction.status, incident?.id]);
 
+  useEffect(() => {
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, []);
+
   if (!incident) {
     return null;
   }
 
   const storyEvents = getStoryEvents(incident, approvalState);
+
+  function startPolling() {
+    if (pollingRef.current) clearInterval(pollingRef.current);
+    pollingRef.current = setInterval(async () => {
+      try {
+        const updated = await getIncidentById(incident!.id);
+        if (updated.status === "resolved" || updated.status === "failed") {
+          clearInterval(pollingRef.current!);
+          pollingRef.current = null;
+          setApprovalState(updated.status as "resolved" | "failed");
+          onIncidentUpdated?.(updated);
+        }
+      } catch {
+        clearInterval(pollingRef.current!);
+        pollingRef.current = null;
+      }
+    }, 3000);
+  }
 
   async function handleDecision(decision: "approve" | "reject") {
     setIsSubmitting(true);
@@ -174,12 +202,14 @@ export function IncidentDetailsModal({
       await executeHeal(recommendedAction.id);
       toast.success("Heal execution triggered.");
       setApprovalState("running");
+      startPolling();
     } catch {
       toast.error("Failed to trigger heal execution.");
     } finally {
       setIsExecuting(false);
     }
   }
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
